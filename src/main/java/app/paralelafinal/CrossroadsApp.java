@@ -25,7 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import app.paralelafinal.entidades.TrafficLight;
 
-// This is a JavaFX application that simulates a crossroads with traffic lights.
+// This
 public class CrossroadsApp extends Application {
 
     // --- SCENE & ROAD DIMENSIONS ---
