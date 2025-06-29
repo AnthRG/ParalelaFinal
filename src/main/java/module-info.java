@@ -17,4 +17,6 @@ module app.paralelafinal {
     opens app.paralelafinal.entidades to javafx.fxml;
     exports app.paralelafinal.examples;
     opens app.paralelafinal.examples to javafx.fxml;
+    exports app.paralelafinal.controladores;
+    opens app.paralelafinal.controladores to javafx.fxml;
 }

@@ -1,6 +1,4 @@
-package app.paralelafinal;
-
-import app.paralelafinal.entidades.Vehicle;
+package app.paralelafinal.entidades;
 
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -17,6 +15,30 @@ public class Intersection {
             // ...
             return 0;
         });
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public boolean isRightTurnAllowed() {
+        return rightTurnAllowed;
+    }
+
+    public void setRightTurnAllowed(boolean rightTurnAllowed) {
+        this.rightTurnAllowed = rightTurnAllowed;
+    }
+
+    public PriorityBlockingQueue<Vehicle> getVehicleQueue() {
+        return vehicleQueue;
+    }
+
+    public void setVehicleQueue(PriorityBlockingQueue<Vehicle> vehicleQueue) {
+        this.vehicleQueue = vehicleQueue;
     }
 
     public void addVehicle(Vehicle vehicle) {
