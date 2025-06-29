@@ -1,4 +1,4 @@
-package app.paralelafinal;
+package app.paralelafinal.examples;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;

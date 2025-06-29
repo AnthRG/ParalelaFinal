@@ -1,4 +1,4 @@
-package app.paralelafinal;
+package app.paralelafinal.examples;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
