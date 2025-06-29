@@ -11,9 +11,21 @@ public class Intersection {
         this.id = id;
         this.rightTurnAllowed = rightTurnAllowed;
         this.vehicleQueue = new PriorityBlockingQueue<>(10, (v1, v2) -> {
-            // Priority comparison logic goes here
-            // ...
-            return 0;
+            // Priority comparison logic:
+            // 1. Emergency vehicles have highest priority.
+            // 2. For vehicles of the same type, earlier arrival time has higher priority.
+
+            boolean v1IsEmergency = "emergency".equalsIgnoreCase(v1.getType());
+            boolean v2IsEmergency = "emergency".equalsIgnoreCase(v2.getType());
+
+            if (v1IsEmergency && !v2IsEmergency) {
+                return -1; // v1 has higher priority
+            }
+            if (!v1IsEmergency && v2IsEmergency) {
+                return 1; // v2 has higher priority
+            }
+
+            return Long.compare(v1.getArrivalTime(), v2.getArrivalTime()); // Earlier arrival time gets higher priority
         });
     }
 

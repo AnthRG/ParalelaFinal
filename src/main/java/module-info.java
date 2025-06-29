@@ -2,6 +2,9 @@ module app.paralelafinal {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.web;
+    requires javafx.swing; // <--- ADDED THIS
+    requires javafx.media; // <--- ADDED THIS
+    requires kotlin.stdlib;
 
     requires org.controlsfx.controls;
     requires com.dlsc.formsfx;
@@ -15,8 +18,6 @@ module app.paralelafinal {
     exports app.paralelafinal;
     exports app.paralelafinal.entidades;
     opens app.paralelafinal.entidades to javafx.fxml;
-    exports app.paralelafinal.examples;
-    opens app.paralelafinal.examples to javafx.fxml;
     exports app.paralelafinal.controladores;
     opens app.paralelafinal.controladores to javafx.fxml;
 }

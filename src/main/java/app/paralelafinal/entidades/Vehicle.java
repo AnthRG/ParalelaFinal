@@ -5,6 +5,7 @@ public class Vehicle {
     private String type; // "normal" or "emergency"
     private String direction; // "right", "straight", "left", "u-turn"
     private boolean inIntersection;
+    private long arrivalTime;
 
     public Vehicle() {}
 
@@ -13,6 +14,7 @@ public class Vehicle {
         this.type = type;
         this.direction = direction;
         this.inIntersection = inIntersection;
+        this.arrivalTime = System.nanoTime();
     }
 
     public String getId() {
@@ -46,4 +48,8 @@ public class Vehicle {
     public void setInIntersection(boolean inIntersection) {
         this.inIntersection = inIntersection;
     }
+
+    public long getArrivalTime() {return arrivalTime;}
+
+    public void setArrivalTime(long arrivalTime) {this.arrivalTime = arrivalTime;}
 }
