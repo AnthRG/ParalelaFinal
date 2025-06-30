@@ -42,9 +42,9 @@ public class TrafficController {
             // Solo permitir que un vehículo cruce a la vez
             Vehicle nextVehicle = intersection.getNextVehicle();
             if (nextVehicle != null) {
-                // Simular el cruce del vehículo (aquí podrías agregar lógica de animación o actualización de estado)
+                // agregar lógica de animación o actualización de estado)
                 nextVehicle.setInIntersection(true);
-                // Aquí podrías agregar lógica para "sacar" el vehículo de la intersección después de un tiempo
+                
                 // Por ahora solo lo marcamos como que está cruzando
             }
         }

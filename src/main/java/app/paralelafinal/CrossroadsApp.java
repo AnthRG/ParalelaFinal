@@ -224,6 +224,29 @@ public class CrossroadsApp extends Application {
         return c;
     }*/
 
+    // Returns [x, y] for intersection id and vehicle index
+    private double[] getIntersectionPosition(String id, double centerX, double centerY, double offset, int index) {
+        double dx = 0, dy = 0;
+        switch (id) {
+            case "North":
+                dx = centerX;
+                dy = centerY - offset - index * 30;
+                break;
+            case "South":
+                dx = centerX;
+                dy = centerY + offset + index * 30;
+                break;
+            case "East":
+                dx = centerX + offset + index * 30;
+                dy = centerY;
+                break;
+            case "West":
+                dx = centerX - offset - index * 30;
+                dy = centerY;
+                break;
+        }
+        return new double[]{dx, dy};
+    }
 
     /**
      * Draws the main road infrastructure.
@@ -318,6 +341,19 @@ public class CrossroadsApp extends Application {
      * @param labelX     The X position for the label.
      * @param labelY     The Y position for the label.
      */
+    private void addLightAndLabel(Pane pane, Group lightGroup, double lightX, double lightY, String labelText, double labelX, double labelY) {
+        lightGroup.setLayoutX(lightX);
+        lightGroup.setLayoutY(lightY);
+
+        Label label = new Label(labelText);
+        label.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        label.setTextFill(Color.WHITE);
+        label.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 5px; -fx-background-radius: 5;");
+        label.setLayoutX(labelX);
+        label.setLayoutY(labelY);
+
+        pane.getChildren().addAll(lightGroup, label);
+    }
     private void addImprovedLightAndLabel(Pane pane, Group lightGroup, double lightX, double lightY, String labelText, double labelX, double labelY) {
     lightGroup.setLayoutX(lightX);
     lightGroup.setLayoutY(lightY);
