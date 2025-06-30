@@ -9,15 +9,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import java.util.Random;
+import java.util.UUID;
+
 public class TrafficController {
     private List<Intersection> intersections;
     private List<TrafficLight> trafficLights;
     private ScheduledExecutorService scheduler;
 
+    private ScheduledExecutorService vehicleGeneratorScheduler;
+    private Random random = new Random();
+
     public TrafficController(List<Intersection> intersections, List<TrafficLight> trafficLights) {
         this.intersections = intersections;
         this.trafficLights = trafficLights;
         this.scheduler = Executors.newScheduledThreadPool(10);
+        this.vehicleGeneratorScheduler = Executors.newSingleThreadScheduledExecutor();
     }
 
     public void startControl() {
@@ -25,18 +32,44 @@ public class TrafficController {
             scheduler.scheduleAtFixedRate(light::changeLight, 0, 60, TimeUnit.SECONDS);
         }
         scheduler.scheduleAtFixedRate(this::manageIntersections, 0, 1, TimeUnit.SECONDS);
+
+        // Generar vehículos automáticamente cada 1 segundo
+        vehicleGeneratorScheduler.scheduleAtFixedRate(this::generateRandomVehicle, 0, 1, TimeUnit.SECONDS);
     }
 
     private void manageIntersections() {
         for (Intersection intersection : intersections) {
+            // Solo permitir que un vehículo cruce a la vez
             Vehicle nextVehicle = intersection.getNextVehicle();
             if (nextVehicle != null) {
-                // Logic to manage vehicle crossing
+                // Simular el cruce del vehículo (aquí podrías agregar lógica de animación o actualización de estado)
+                nextVehicle.setInIntersection(true);
+                // Aquí podrías agregar lógica para "sacar" el vehículo de la intersección después de un tiempo
+                // Por ahora solo lo marcamos como que está cruzando
             }
         }
     }
 
+    // Genera un vehículo aleatorio y lo agrega a una intersección aleatoria
+    private void generateRandomVehicle() {
+        if (intersections.isEmpty()) return;
+
+        String[] types = {"normal", "emergency"};
+        String[] directions = {"right", "straight", "left", "u-turn"};
+
+        String id = UUID.randomUUID().toString();
+        String type = types[random.nextInt(types.length)];
+        String direction = directions[random.nextInt(directions.length)];
+
+        Vehicle vehicle = new Vehicle(id, type, direction, false);
+
+        // Selecciona una intersección aleatoria
+        Intersection intersection = intersections.get(random.nextInt(intersections.size()));
+        intersection.addVehicle(vehicle);
+    }
+
     public void stopControl() {
         scheduler.shutdown();
+        vehicleGeneratorScheduler.shutdown();
     }
 }

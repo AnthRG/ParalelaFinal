@@ -18,12 +18,18 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import app.paralelafinal.entidades.TrafficLight;
+import app.paralelafinal.entidades.Intersection;
+import app.paralelafinal.entidades.Vehicle;
+import app.paralelafinal.controladores.TrafficController;
+
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 
 // This
 public class CrossroadsApp extends Application {
@@ -56,19 +62,26 @@ public class CrossroadsApp extends Application {
 
     private ScheduledExecutorService scheduler;
 
+    // --- VEHICLE VISUALIZATION ---
+    private List<Intersection> intersections;
+    private List<TrafficLight> trafficLights;
+    private TrafficController trafficController;
+    private Pane simulationPane;
+    private Map<Vehicle, Circle> vehicleCircles = new HashMap<>();
+
     @Override
     public void start(Stage primaryStage) {
         trafficLightVisualsMap = new HashMap<>();
 
         BorderPane root = new BorderPane();
-        Pane simulationPane = new Pane();
+        simulationPane = new Pane();
         simulationPane.setPrefSize(SCENE_WIDTH, SCENE_HEIGHT);
-        simulationPane.setStyle("-fx-background-color: #89CFF0;"); // Grassy green background
+        simulationPane.setStyle("-fx-background-color: #89CFF0;");
 
         // --- Draw all visual elements ---
         drawRoads(simulationPane);
         drawRoadMarkings(simulationPane);
-        setupTrafficLightsAndLabels(simulationPane); // Renamed for clarity
+        setupTrafficLightsAndLabels(simulationPane);
 
         // --- UI CONTROLS ---
         Button toggleLightsButton = new Button("Manual Light Change");
@@ -85,6 +98,10 @@ public class CrossroadsApp extends Application {
         updateAllVisuals();
         startAutomaticTrafficLightSwitching();
 
+        // --- VEHICLE LOGIC ---
+        setupIntersectionsAndController();
+        startVehicleVisualizationUpdater();
+
         Scene scene = new Scene(root, SCENE_WIDTH, SCENE_HEIGHT);
         primaryStage.setTitle("Improved Crossroads Simulation");
         primaryStage.setScene(scene);
@@ -95,7 +112,102 @@ public class CrossroadsApp extends Application {
             if (scheduler != null && !scheduler.isShutdown()) {
                 scheduler.shutdownNow();
             }
+            if (trafficController != null) {
+                trafficController.stopControl();
+            }
         });
+    }
+    // --- VEHICLE & INTERSECTION SETUP ---
+    private void setupIntersectionsAndController() {
+        intersections = new ArrayList<>();
+        trafficLights = new ArrayList<>();
+        // Create 4 intersections (one for each direction)
+        intersections.add(new Intersection("North", true));
+        intersections.add(new Intersection("South", true));
+        intersections.add(new Intersection("East", true));
+        intersections.add(new Intersection("West", true));
+
+        // Use the backend traffic lights
+        trafficLights.add(trafficLightNorth);
+        trafficLights.add(trafficLightSouth);
+        trafficLights.add(trafficLightEast);
+        trafficLights.add(trafficLightWest);
+
+        trafficController = new TrafficController(intersections, trafficLights);
+        trafficController.startControl();
+    }
+
+    // --- VEHICLE VISUALIZATION ---
+    private void startVehicleVisualizationUpdater() {
+        ScheduledExecutorService vehicleUpdater = Executors.newSingleThreadScheduledExecutor();
+        vehicleUpdater.scheduleAtFixedRate(() -> Platform.runLater(this::drawVehicles), 0, 500, TimeUnit.MILLISECONDS);
+    }
+    // Método actualizado que usa formas realistas de vehículos
+    private void drawVehicles() {
+        simulationPane.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
+        vehicleCircles.clear();
+
+        double centerX = SCENE_WIDTH / 2;
+        double centerY = SCENE_HEIGHT / 2;
+        double laneWidth = ROAD_WIDTH / 2.0;
+        double vehicleLength = 40;
+        double vehicleWidth = 20;
+
+        for (Intersection intersection : intersections) {
+            List<Vehicle> queue = new ArrayList<>(intersection.getVehicleQueue());
+            for (int i = 0; i < queue.size(); i++) {
+                Vehicle v = queue.get(i);
+                Group vehicle = createVehicleShape(v, vehicleLength, vehicleWidth);
+                double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, vehicleLength, i);
+                double angle = getVehicleRotation(intersection.getId());
+
+                vehicle.setLayoutX(pos[0]);
+                vehicle.setLayoutY(pos[1]);
+                vehicle.setRotate(angle);
+
+                simulationPane.getChildren().add(vehicle);
+            }
+        }
+    }
+
+
+    private Circle createVehicleCircle(Vehicle v) {
+        Circle c = new Circle(12);
+        if ("emergency".equalsIgnoreCase(v.getType())) {
+            c.setFill(Color.ORANGERED);
+            c.setStroke(Color.YELLOW);
+            c.setStrokeWidth(3);
+        } else {
+            c.setFill(Color.DODGERBLUE);
+            c.setStroke(Color.BLACK);
+            c.setStrokeWidth(2);
+        }
+        c.setUserData("vehicle");
+        return c;
+    }
+
+    // Returns [x, y] for intersection id and vehicle index
+    private double[] getIntersectionPosition(String id, double centerX, double centerY, double offset, int index) {
+        double dx = 0, dy = 0;
+        switch (id) {
+            case "North":
+                dx = centerX;
+                dy = centerY - offset - index * 30;
+                break;
+            case "South":
+                dx = centerX;
+                dy = centerY + offset + index * 30;
+                break;
+            case "East":
+                dx = centerX + offset + index * 30;
+                dy = centerY;
+                break;
+            case "West":
+                dx = centerX - offset - index * 30;
+                dy = centerY;
+                break;
+        }
+        return new double[]{dx, dy};
     }
 
     /**
@@ -324,6 +436,118 @@ public class CrossroadsApp extends Application {
         // The first change happens after an initial delay of 10 seconds.
         scheduler.scheduleAtFixedRate(this::toggleTrafficLightsLogic, 10, 10, TimeUnit.SECONDS);
     }
+
+        // Nuevo método para crear forma de vehículo más realista
+    private Group createVehicleShape(Vehicle v, double length, double width) {
+        Group vehicleGroup = new Group();
+
+        // Cuerpo principal del vehículo
+        Rectangle body = new Rectangle(length, width);
+        body.setArcWidth(5);
+        body.setArcHeight(5);
+
+        if ("emergency".equalsIgnoreCase(v.getType())) {
+            body.setFill(Color.RED);
+            body.setStroke(Color.YELLOW);
+            body.setStrokeWidth(2);
+
+            // Luces de emergencia
+            Rectangle light1 = new Rectangle(length * 0.3, 3);
+            light1.setFill(Color.YELLOW);
+            light1.setX(length * 0.1);
+            light1.setY(-2);
+
+            Rectangle light2 = new Rectangle(length * 0.3, 3);
+            light2.setFill(Color.BLUE);
+            light2.setX(length * 0.6);
+            light2.setY(-2);
+
+            vehicleGroup.getChildren().addAll(body, light1, light2);
+        } else {
+            Color[] carColors = {Color.BLUE, Color.GREEN, Color.PURPLE, Color.ORANGE, Color.BROWN, Color.NAVY};
+            body.setFill(carColors[Math.abs(v.getId().hashCode()) % carColors.length]);
+            body.setStroke(Color.BLACK);
+            body.setStrokeWidth(1);
+            vehicleGroup.getChildren().add(body);
+        }
+
+        // Ventanas
+        Rectangle frontWindow = new Rectangle(length * 0.15, width * 0.6);
+        frontWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        frontWindow.setX(length * 0.75);
+        frontWindow.setY(width * 0.2);
+
+        Rectangle backWindow = new Rectangle(length * 0.15, width * 0.6);
+        backWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        backWindow.setX(length * 0.1);
+        backWindow.setY(width * 0.2);
+
+        // Ruedas
+        Circle wheel1 = new Circle(length * 0.2, width + 2, 3);
+        wheel1.setFill(Color.BLACK);
+        Circle wheel2 = new Circle(length * 0.8, width + 2, 3);
+        wheel2.setFill(Color.BLACK);
+        Circle wheel3 = new Circle(length * 0.2, -2, 3);
+        wheel3.setFill(Color.BLACK);
+        Circle wheel4 = new Circle(length * 0.8, -2, 3);
+        wheel4.setFill(Color.BLACK);
+
+        vehicleGroup.getChildren().addAll(frontWindow, backWindow, wheel1, wheel2, wheel3, wheel4);
+        vehicleGroup.setUserData("vehicle");
+
+        return vehicleGroup;
+    }
+
+    // Posiciona vehículos en los carriles
+    private double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, double vehicleLength, int index) {
+        double x = 0, y = 0;
+        double spacing = vehicleLength + 10;
+
+        switch (intersectionId) {
+            case "North":
+                x = centerX - laneWidth / 2 - vehicleLength / 2;
+                y = centerY - ROAD_WIDTH / 2 - spacing * (index + 1);
+                break;
+            case "South":
+                x = centerX + laneWidth / 2 - vehicleLength / 2;
+                y = centerY + ROAD_WIDTH / 2 + spacing * (index + 1);
+                break;
+            case "East":
+                x = centerX + ROAD_WIDTH / 2 + spacing * (index + 1);
+                y = centerY - laneWidth / 2 - vehicleLength / 2;
+                break;
+            case "West":
+                x = centerX - ROAD_WIDTH / 2 - spacing * (index + 1);
+                y = centerY + laneWidth / 2 - vehicleLength / 2;
+                break;
+        }
+
+        return new double[]{x, y};
+    }
+
+    // Rotación de vehículos según dirección
+    private double getVehicleRotation(String intersectionId) {
+        switch (intersectionId) {
+            case "North": return 90;
+            case "South": return 270;
+            case "East":  return 0;
+            case "West":  return 0;
+            default: return 0;
+        }
+    }
+
+    // Simulación de cruce de intersección
+    private void animateVehicleCrossing(Vehicle vehicle, String fromIntersection) {
+        Timeline timeline = new Timeline(
+            new KeyFrame(Duration.seconds(2), e -> {
+                for (Intersection intersection : intersections) {
+                    intersection.getVehicleQueue().remove(vehicle);
+                }
+            })
+        );
+        timeline.play();
+    }
+
 
     public static void main(String[] args) {
         launch(args);
