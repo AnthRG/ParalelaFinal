@@ -72,4 +72,9 @@ public class TrafficController {
         scheduler.shutdown();
         vehicleGeneratorScheduler.shutdown();
     }
+    @FunctionalInterface
+    public interface VehicleCrossingListener {
+        void onVehicleCross(Vehicle vehicle, String fromDirection);
+    }
+
 }

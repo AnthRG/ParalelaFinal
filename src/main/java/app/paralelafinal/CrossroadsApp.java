@@ -30,6 +30,7 @@ import app.paralelafinal.controladores.TrafficController;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
+import javafx.scene.effect.Glow;
 
 // This
 public class CrossroadsApp extends Application {
@@ -75,6 +76,7 @@ public class CrossroadsApp extends Application {
 
         BorderPane root = new BorderPane();
         simulationPane = new Pane();
+        addPareSigns(simulationPane);
         simulationPane.setPrefSize(SCENE_WIDTH, SCENE_HEIGHT);
         simulationPane.setStyle("-fx-background-color: #89CFF0;");
 
@@ -117,6 +119,7 @@ public class CrossroadsApp extends Application {
             }
         });
     }
+
     // --- VEHICLE & INTERSECTION SETUP ---
     private void setupIntersectionsAndController() {
         intersections = new ArrayList<>();
@@ -136,12 +139,47 @@ public class CrossroadsApp extends Application {
         trafficController = new TrafficController(intersections, trafficLights);
         trafficController.startControl();
     }
+    private void setupTrafficLightsAndLabels(Pane pane) {
+        double centerX = SCENE_WIDTH / 2;
+        double centerY = SCENE_HEIGHT / 2;
+        double offset = 35; // Offset mejorado
+
+        // Crear labels con mejor estilo
+        String southBoundText = "⬇ Tráfico Sur";
+        Group tl_NorthGroup = createTrafficLightVisuals();
+        double tl_NorthX = centerX - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_WIDTH - offset;
+        double tl_NorthY = centerY - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_HEIGHT - offset;
+        addImprovedLightAndLabel(pane, tl_NorthGroup, tl_NorthX, tl_NorthY, southBoundText, tl_NorthX - 80, tl_NorthY - 30);
+        trafficLightVisualsMap.put("North", new TrafficLightVisuals((Circle) tl_NorthGroup.getChildren().get(4), (Circle) tl_NorthGroup.getChildren().get(5)));
+
+        String northBoundText = "⬆ Tráfico Norte";
+        Group tl_SouthGroup = createTrafficLightVisuals();
+        double tl_SouthX = centerX + ROAD_WIDTH / 2 + offset;
+        double tl_SouthY = centerY + ROAD_WIDTH / 2 + offset;
+        addImprovedLightAndLabel(pane, tl_SouthGroup, tl_SouthX, tl_SouthY, northBoundText, tl_SouthX - 50, tl_SouthY + TRAFFIC_LIGHT_HEIGHT + 70);
+        trafficLightVisualsMap.put("South", new TrafficLightVisuals((Circle) tl_SouthGroup.getChildren().get(4), (Circle) tl_SouthGroup.getChildren().get(5)));
+
+        String westBoundText = "⬅ Tráfico Oeste";
+        Group tl_EastGroup = createTrafficLightVisuals();
+        double tl_EastX = centerX + ROAD_WIDTH / 2 + offset;
+        double tl_EastY = centerY - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_HEIGHT - offset;
+        addImprovedLightAndLabel(pane, tl_EastGroup, tl_EastX, tl_EastY, westBoundText, tl_EastX - 50, tl_EastY - 30);
+        trafficLightVisualsMap.put("East", new TrafficLightVisuals((Circle) tl_EastGroup.getChildren().get(4), (Circle) tl_EastGroup.getChildren().get(5)));
+
+        String eastBoundText = "➡ Tráfico Este";
+        Group tl_WestGroup = createTrafficLightVisuals();
+        double tl_WestX = centerX - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_WIDTH - offset;
+        double tl_WestY = centerY + ROAD_WIDTH / 2 + offset;
+        addImprovedLightAndLabel(pane, tl_WestGroup, tl_WestX, tl_WestY, eastBoundText, tl_WestX - 80, tl_WestY + TRAFFIC_LIGHT_HEIGHT + 70);
+        trafficLightVisualsMap.put("West", new TrafficLightVisuals((Circle) tl_WestGroup.getChildren().get(4), (Circle) tl_WestGroup.getChildren().get(5)));
+}
+
 
     // --- VEHICLE VISUALIZATION ---
     private void startVehicleVisualizationUpdater() {
         ScheduledExecutorService vehicleUpdater = Executors.newSingleThreadScheduledExecutor();
         vehicleUpdater.scheduleAtFixedRate(() -> Platform.runLater(this::drawVehicles), 0, 500, TimeUnit.MILLISECONDS);
-    }
+}
     // Método actualizado que usa formas realistas de vehículos
     private void drawVehicles() {
         simulationPane.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
@@ -170,7 +208,7 @@ public class CrossroadsApp extends Application {
         }
     }
 
-
+/* 
     private Circle createVehicleCircle(Vehicle v) {
         Circle c = new Circle(12);
         if ("emergency".equalsIgnoreCase(v.getType())) {
@@ -184,31 +222,8 @@ public class CrossroadsApp extends Application {
         }
         c.setUserData("vehicle");
         return c;
-    }
+    }*/
 
-    // Returns [x, y] for intersection id and vehicle index
-    private double[] getIntersectionPosition(String id, double centerX, double centerY, double offset, int index) {
-        double dx = 0, dy = 0;
-        switch (id) {
-            case "North":
-                dx = centerX;
-                dy = centerY - offset - index * 30;
-                break;
-            case "South":
-                dx = centerX;
-                dy = centerY + offset + index * 30;
-                break;
-            case "East":
-                dx = centerX + offset + index * 30;
-                dy = centerY;
-                break;
-            case "West":
-                dx = centerX - offset - index * 30;
-                dy = centerY;
-                break;
-        }
-        return new double[]{dx, dy};
-    }
 
     /**
      * Draws the main road infrastructure.
@@ -234,7 +249,7 @@ public class CrossroadsApp extends Application {
     private void drawRoadMarkings(Pane pane) {
         double centerX = SCENE_WIDTH / 2;
         double centerY = SCENE_HEIGHT / 2;
-        Pane markingsPane = new Pane(); // Use a separate pane for markings to ensure they are on top of the road
+        Pane markingsPane = new Pane();
 
         // --- DOUBLE SOLID YELLOW CENTER LINES ---
         // Horizontal
@@ -280,52 +295,17 @@ public class CrossroadsApp extends Application {
                 markingsPane.getChildren().addAll(dash1, dash2);
             }
         }
+
+        // Antes de agregar markingsPane, elimínalo si ya existe
+        pane.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("markingsPane"));
+        markingsPane.setUserData("markingsPane");
         pane.getChildren().add(markingsPane);
     }
 
     /**
      * Creates, positions, and labels all four traffic lights with a clear and simple layout.
      */
-    private void setupTrafficLightsAndLabels(Pane pane) {
-        double centerX = SCENE_WIDTH / 2;
-        double centerY = SCENE_HEIGHT / 2;
-        double offset = 25; // Offset from the corner of the road
-
-        // --- Create and position each traffic light and its label ---
-
-        // Light for SOUTHBOUND traffic (from North) -> Positioned Top-Left of intersection
-        String southBoundText = "Controls Southbound Traffic";
-        Group tl_NorthGroup = createTrafficLightVisuals();
-        double tl_NorthX = centerX - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_WIDTH - offset;
-        double tl_NorthY = centerY - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_HEIGHT - offset;
-        addLightAndLabel(pane, tl_NorthGroup, tl_NorthX, tl_NorthY, southBoundText, tl_NorthX - 150, tl_NorthY - 40);
-        trafficLightVisualsMap.put("North", new TrafficLightVisuals((Circle) tl_NorthGroup.getChildren().get(1), (Circle) tl_NorthGroup.getChildren().get(2)));
-
-        // Light for NORTHBOUND traffic (from South) -> Positioned Bottom-Right of intersection
-        String northBoundText = "Controls Northbound Traffic";
-        Group tl_SouthGroup = createTrafficLightVisuals();
-        double tl_SouthX = centerX + ROAD_WIDTH / 2 + offset;
-        double tl_SouthY = centerY + ROAD_WIDTH / 2 + offset;
-        addLightAndLabel(pane, tl_SouthGroup, tl_SouthX, tl_SouthY, northBoundText, tl_SouthX, tl_SouthY + TRAFFIC_LIGHT_HEIGHT + 20);
-        trafficLightVisualsMap.put("South", new TrafficLightVisuals((Circle) tl_SouthGroup.getChildren().get(1), (Circle) tl_SouthGroup.getChildren().get(2)));
-
-        // Light for WESTBOUND traffic (from East) -> Positioned Top-Right of intersection
-        String westBoundText = "Controls Westbound Traffic";
-        Group tl_EastGroup = createTrafficLightVisuals();
-        double tl_EastX = centerX + ROAD_WIDTH / 2 + offset;
-        double tl_EastY = centerY - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_HEIGHT - offset;
-        addLightAndLabel(pane, tl_EastGroup, tl_EastX, tl_EastY, westBoundText, tl_EastX, tl_EastY - 40);
-        trafficLightVisualsMap.put("East", new TrafficLightVisuals((Circle) tl_EastGroup.getChildren().get(1), (Circle) tl_EastGroup.getChildren().get(2)));
-
-
-        // Light for EASTBOUND traffic (from West) -> Positioned Bottom-Left of intersection
-        String eastBoundText = "Controls Eastbound Traffic";
-        Group tl_WestGroup = createTrafficLightVisuals();
-        double tl_WestX = centerX - ROAD_WIDTH / 2 - TRAFFIC_LIGHT_WIDTH - offset;
-        double tl_WestY = centerY + ROAD_WIDTH / 2 + offset;
-        addLightAndLabel(pane, tl_WestGroup, tl_WestX, tl_WestY, eastBoundText, tl_WestX - 150, tl_WestY + TRAFFIC_LIGHT_HEIGHT + 20);
-        trafficLightVisualsMap.put("West", new TrafficLightVisuals((Circle) tl_WestGroup.getChildren().get(1), (Circle) tl_WestGroup.getChildren().get(2)));
-    }
+    
 
     /**
      * Adds a traffic light group and a descriptive label to the pane at specified coordinates.
@@ -338,38 +318,66 @@ public class CrossroadsApp extends Application {
      * @param labelX     The X position for the label.
      * @param labelY     The Y position for the label.
      */
-    private void addLightAndLabel(Pane pane, Group lightGroup, double lightX, double lightY, String labelText, double labelX, double labelY) {
-        lightGroup.setLayoutX(lightX);
-        lightGroup.setLayoutY(lightY);
+    private void addImprovedLightAndLabel(Pane pane, Group lightGroup, double lightX, double lightY, String labelText, double labelX, double labelY) {
+    lightGroup.setLayoutX(lightX);
+    lightGroup.setLayoutY(lightY);
 
-        Label label = new Label(labelText);
-        label.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        label.setTextFill(Color.WHITE);
-        label.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 5px; -fx-background-radius: 5;");
-        label.setLayoutX(labelX);
-        label.setLayoutY(labelY);
+    Label label = new Label(labelText);
+    label.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+    label.setTextFill(Color.WHITE);
+    label.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-padding: 8px; -fx-background-radius: 8; -fx-border-color: #444; -fx-border-width: 1; -fx-border-radius: 8;");
+    label.setLayoutX(labelX);
+    label.setLayoutY(labelY);
 
-        pane.getChildren().addAll(lightGroup, label);
-    }
+    pane.getChildren().addAll(lightGroup, label);
+}
 
 
     /**
      * Creates a single traffic light visual group (the black casing with two lights).
      */
     private Group createTrafficLightVisuals() {
-        Group lightGroup = new Group();
-        Rectangle casing = new Rectangle(TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_HEIGHT);
-        casing.setFill(Color.BLACK);
-        casing.setArcWidth(10);
-        casing.setArcHeight(10);
+    Group lightGroup = new Group();
+    
+    // Poste del semáforo
+    Rectangle pole = new Rectangle(8, 60);
+    pole.setFill(Color.DARKGRAY);
+    pole.setX(TRAFFIC_LIGHT_WIDTH / 2 - 4);
+    pole.setY(TRAFFIC_LIGHT_HEIGHT);
+    
+    // Casing del semáforo más realista
+    Rectangle casing = new Rectangle(TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_HEIGHT);
+    casing.setFill(Color.BLACK);
+    casing.setStroke(Color.DARKGRAY);
+    casing.setStrokeWidth(2);
+    casing.setArcWidth(8);
+    casing.setArcHeight(8);
+    
+    // Visera/sombra para cada luz
+    Rectangle redShade = new Rectangle(TRAFFIC_LIGHT_WIDTH - 4, 8);
+    redShade.setFill(Color.DARKGRAY);
+    redShade.setX(2);
+    redShade.setY(8);
+    
+    Rectangle greenShade = new Rectangle(TRAFFIC_LIGHT_WIDTH - 4, 8);
+    greenShade.setFill(Color.DARKGRAY);
+    greenShade.setX(2);
+    greenShade.setY(LIGHT_RADIUS * 3 + LIGHT_SPACING * 2 - 8);
 
-        // Lights are initially off (gray)
-        Circle redLight = new Circle(TRAFFIC_LIGHT_WIDTH / 2, LIGHT_RADIUS + LIGHT_SPACING, LIGHT_RADIUS, Color.DARKRED.desaturate());
-        Circle greenLight = new Circle(TRAFFIC_LIGHT_WIDTH / 2, LIGHT_RADIUS * 3 + LIGHT_SPACING * 2, LIGHT_RADIUS, Color.DARKGREEN.desaturate());
+    // Luces con mejor efecto visual
+    Circle redLight = new Circle(TRAFFIC_LIGHT_WIDTH / 2, LIGHT_RADIUS + LIGHT_SPACING, LIGHT_RADIUS - 2);
+    redLight.setFill(Color.DARKRED.desaturate());
+    redLight.setStroke(Color.BLACK);
+    redLight.setStrokeWidth(1);
+    
+    Circle greenLight = new Circle(TRAFFIC_LIGHT_WIDTH / 2, LIGHT_RADIUS * 3 + LIGHT_SPACING * 2, LIGHT_RADIUS - 2);
+    greenLight.setFill(Color.DARKGREEN.desaturate());
+    greenLight.setStroke(Color.BLACK);
+    greenLight.setStrokeWidth(1);
 
-        lightGroup.getChildren().addAll(casing, redLight, greenLight);
-        return lightGroup;
-    }
+    lightGroup.getChildren().addAll(pole, casing, redShade, greenShade, redLight, greenLight);
+    return lightGroup;
+}
 
     /**
      * Initializes the backend traffic light objects and sets their initial state.
@@ -419,14 +427,25 @@ public class CrossroadsApp extends Application {
         TrafficLightVisuals visuals = trafficLightVisualsMap.get(direction);
         if (visuals != null) {
             if (lightLogic.isGreen()) {
+                // Luz verde encendida con efecto de brillo
                 visuals.greenLight.setFill(Color.LIMEGREEN);
-                visuals.redLight.setFill(Color.DARKRED.desaturate()); // Dim the red light
+                visuals.greenLight.setEffect(new javafx.scene.effect.Glow(0.8));
+                
+                // Luz roja apagada
+                visuals.redLight.setFill(Color.DARKRED.desaturate());
+                visuals.redLight.setEffect(null);
             } else {
-                visuals.greenLight.setFill(Color.DARKGREEN.desaturate()); // Dim the green light
+                // Luz roja encendida con efecto de brillo
                 visuals.redLight.setFill(Color.RED);
+                visuals.redLight.setEffect(new javafx.scene.effect.Glow(0.8));
+                
+                // Luz verde apagada
+                visuals.greenLight.setFill(Color.DARKGREEN.desaturate());
+                visuals.greenLight.setEffect(null);
             }
         }
-    }
+}
+
 
     /**
      * Starts a scheduled task to automatically switch traffic lights every 10 seconds.
@@ -547,6 +566,52 @@ public class CrossroadsApp extends Application {
         );
         timeline.play();
     }
+
+    
+    private void addPareSigns(Pane simulationPane) {
+    double centerX = SCENE_WIDTH / 2;
+    double centerY = SCENE_HEIGHT / 2;
+    double signOffset = 120; // Distancia del centro de la intersección
+    
+    // Crear letreros PARE en posiciones más lógicas
+    createStopSign(simulationPane, centerX, centerY - signOffset - 60, "PARE"); // Norte
+    createStopSign(simulationPane, centerX, centerY + signOffset + 60, "PARE"); // Sur
+    createStopSign(simulationPane, centerX - signOffset - 60, centerY, "PARE"); // Oeste
+    createStopSign(simulationPane, centerX + signOffset + 60, centerY, "PARE"); // Este
+}
+    private void createStopSign(Pane pane, double x, double y, String text) {
+    Group stopSignGroup = new Group();
+    
+    // Poste del letrero
+    Rectangle pole = new Rectangle(6, 40);
+    pole.setFill(Color.DARKGRAY);
+    pole.setX(-3);
+    pole.setY(25);
+    
+    // Fondo octagonal del letrero PARE
+    // Simulamos octágono con un rectángulo con esquinas muy redondeadas
+    Rectangle signBackground = new Rectangle(50, 50);
+    signBackground.setFill(Color.RED);
+    signBackground.setStroke(Color.WHITE);
+    signBackground.setStrokeWidth(3);
+    signBackground.setArcWidth(15);
+    signBackground.setArcHeight(15);
+    signBackground.setX(-25);
+    signBackground.setY(-25);
+    
+    // Texto PARE
+    Label pareText = new Label(text);
+    pareText.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+    pareText.setTextFill(Color.WHITE);
+    pareText.setLayoutX(-18);
+    pareText.setLayoutY(-8);
+    
+    stopSignGroup.getChildren().addAll(pole, signBackground, pareText);
+    stopSignGroup.setLayoutX(x);
+    stopSignGroup.setLayoutY(y);
+    
+    pane.getChildren().add(stopSignGroup);
+}
 
 
     public static void main(String[] args) {
