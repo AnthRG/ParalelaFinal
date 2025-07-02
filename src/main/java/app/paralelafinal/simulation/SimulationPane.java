@@ -2,6 +2,7 @@
 package app.paralelafinal.simulation;
 
 import app.paralelafinal.config.SimulationConfig;
+import app.paralelafinal.controladores.TrafficController;
 import app.paralelafinal.entidades.Intersection;
 import app.paralelafinal.entidades.TrafficLight;
 import app.paralelafinal.entidades.Vehicle;
@@ -62,14 +63,10 @@ public class SimulationPane {
 
         root.setCenter(simulationCanvas);
 
-        // --- UI CONTROLS (Example: moving manual toggle button here) ---
-        Button toggleLightsButton = new Button("Manual Light Change");
-        toggleLightsButton.setOnAction(e -> simulationEngine.toggleTrafficLights());
-
         Button addVehicleButton = new Button("Add Vehicle");
-        addVehicleButton.setOnAction(e -> simulationEngine.addRandomVehicle());
+        addVehicleButton.setOnAction(e -> simulationEngine.trafficController.generateRandomVehicle());
 
-        HBox buttonBox = new HBox(10, toggleLightsButton, addVehicleButton); // 10px spacing
+        HBox buttonBox = new HBox(10, addVehicleButton); // 10px spacing
         buttonBox.setAlignment(Pos.CENTER);
         buttonBox.setPadding(new Insets(10));
         root.setBottom(buttonBox);
@@ -86,7 +83,7 @@ public class SimulationPane {
      * This method will be called by the SimulationEngine to trigger UI updates.
      */
     public void updateAllVisuals() throws InterruptedException {
-        updateTrafficLightVisuals();
+        //updateTrafficLightVisuals();
         drawVehicles();
     }
 
@@ -258,7 +255,7 @@ public class SimulationPane {
         for (Intersection intersection : simulationEngine.getIntersections()) {
             PriorityBlockingQueue<Vehicle> queue = intersection.getVehicleQueue();
             for (int i = 0; i < queue.size(); i++) {
-                Vehicle v = queue.take();
+                Vehicle v = queue.peek();
                 Group vehicle = createVehicleShape(v, SimulationConfig.VEHICLE_LENGTH, SimulationConfig.VEHICLE_WIDTH);
                 double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, SimulationConfig.VEHICLE_LENGTH, i);
                 double angle = getVehicleRotation(intersection.getId());
@@ -367,19 +364,19 @@ public class SimulationPane {
     private void addPareSigns(Pane simulationPane) {
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
         double centerY = SimulationConfig.SCENE_HEIGHT / 2;
-        double signOffset = SimulationConfig.STOP_SIGN_OFFSET;
+        double signOffset = 5 + (SimulationConfig.ROAD_WIDTH / 2);
 
-        createStopSign(simulationPane, centerX, centerY - signOffset - 60, "PARE");
-        createStopSign(simulationPane, centerX, centerY + signOffset + 60, "PARE");
-        createStopSign(simulationPane, centerX - signOffset - 60, centerY, "PARE");
-        createStopSign(simulationPane, centerX + signOffset + 60, centerY, "PARE");
+        createStopSign(simulationPane, centerX + signOffset + 20, centerY + signOffset/2 -5, "PARE");
+        createStopSign(simulationPane, centerX + signOffset + 20, centerY - signOffset * 2 + 20, "PARE");
+        createStopSign(simulationPane, centerX - signOffset - 20, centerY + signOffset/2 -5, "PARE");
+        createStopSign(simulationPane, centerX - signOffset - 20, centerY - signOffset * 2 + 20, "PARE");
     }
 
     private void createStopSign(Pane pane, double x, double y, String text) {
         Group stopSignGroup = new Group();
 
         Rectangle pole = new Rectangle(6, 40);
-        pole.setFill(Color.DARKGRAY);
+        pole.setFill(Color.GRAY);
         pole.setX(-3);
         pole.setY(25);
 

@@ -28,9 +28,9 @@ public class TrafficController {
     }
 
     public void startControl() {
-        for (TrafficLight light : trafficLights) {
+/*        for (TrafficLight light : trafficLights) {
             scheduler.scheduleAtFixedRate(light::changeLight, 0, 60, TimeUnit.SECONDS);
-        }
+        }*/
         scheduler.scheduleAtFixedRate(this::manageIntersections, 0, 1, TimeUnit.SECONDS);
 
         // Generar vehículos automáticamente cada 1 segundo
@@ -38,20 +38,23 @@ public class TrafficController {
     }
 
     private void manageIntersections() {
+        int i =0;
+        int imayor = 0;
+        long mayor = 0;
         for (Intersection intersection : intersections) {
-            // Solo permitir que un vehículo cruce a la vez
-            Vehicle nextVehicle = intersection.getNextVehicle();
-            if (nextVehicle != null) {
-                // agregar lógica de animación o actualización de estado)
-                nextVehicle.setInIntersection(true);
-                
-                // Por ahora solo lo marcamos como que está cruzando
+            Vehicle nextVehicle = intersection.getVehicleQueue().peek();
+            if(nextVehicle != null){
+                if(nextVehicle.getArrivalTime() - System.nanoTime() > mayor) {
+                    mayor = nextVehicle.getArrivalTime();
+                    imayor = i;
+                }
             }
         }
+        Vehicle vehicle = intersections.get(imayor).getNextVehicle();
     }
 
     // Genera un vehículo aleatorio y lo agrega a una intersección aleatoria
-    private void generateRandomVehicle() {
+    public void generateRandomVehicle() {
         if (intersections.isEmpty()) return;
 
         String[] types = {"normal", "emergency"};

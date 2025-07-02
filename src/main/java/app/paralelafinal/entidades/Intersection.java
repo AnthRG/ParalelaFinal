@@ -60,4 +60,7 @@ public class Intersection {
     public Vehicle getNextVehicle() {
         return vehicleQueue.poll();
     }
+    public Vehicle peekNextVehicle() {
+        return vehicleQueue.peek();
+    }
 }

@@ -20,7 +20,7 @@ public class SimulationEngine {
 
     private List<Intersection> intersections;
     private List<TrafficLight> trafficLights;
-    private TrafficController trafficController;
+    public TrafficController trafficController;
 
     private ScheduledExecutorService scheduler;
     private ScheduledExecutorService vehicleUpdater;
@@ -29,12 +29,12 @@ public class SimulationEngine {
     private Consumer<Void> uiUpdateCallback;
 
     public SimulationEngine() {
-        initializeBackendLogic();
+        //initializeLightBackendLogic();
         setupIntersectionsAndController();
     }
 
-    private void initializeBackendLogic() {
-        trafficLights = new ArrayList<>();
+    private void initializeLightBackendLogic() {
+        /*trafficLights = new ArrayList<>();
         trafficLights.add(new TrafficLight("North"));
         trafficLights.add(new TrafficLight("South"));
         trafficLights.add(new TrafficLight("East"));
@@ -43,7 +43,7 @@ public class SimulationEngine {
         // Initial state: North/South bound traffic is green, East/West is red.
         trafficLights.stream()
                 .filter(tl -> tl.getId().equals("North") || tl.getId().equals("South"))
-                .forEach(TrafficLight::changeLight); // becomes green
+                .forEach(TrafficLight::changeLight); // becomes green*/
     }
 
     private void setupIntersectionsAndController() {
@@ -58,12 +58,6 @@ public class SimulationEngine {
 
     public void startSimulation() {
         trafficController.startControl();
-
-        // Automatic traffic light switching
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::toggleTrafficLights,
-                SimulationConfig.TRAFFIC_LIGHT_SWITCH_INTERVAL_SECONDS,
-                SimulationConfig.TRAFFIC_LIGHT_SWITCH_INTERVAL_SECONDS, TimeUnit.SECONDS);
 
         // Vehicle visualization updater
         vehicleUpdater = Executors.newSingleThreadScheduledExecutor();
@@ -85,16 +79,6 @@ public class SimulationEngine {
         if (trafficController != null) {
             trafficController.stopControl();
         }
-    }
-
-    public void toggleTrafficLights() {
-        trafficLights.forEach(TrafficLight::changeLight);
-        // Trigger UI update after logic change
-        Platform.runLater(() -> {
-            if (uiUpdateCallback != null) {
-                uiUpdateCallback.accept(null);
-            }
-        });
     }
 
     // Getters for UI to access simulation state
