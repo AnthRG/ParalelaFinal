@@ -1,0 +1,407 @@
+// app.paralelafinal.ui.SimulationPane
+package app.paralelafinal.simulation;
+
+import app.paralelafinal.config.SimulationConfig;
+import app.paralelafinal.entidades.Intersection;
+import app.paralelafinal.entidades.TrafficLight;
+import app.paralelafinal.entidades.Vehicle;
+
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Group;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.PriorityBlockingQueue;
+
+public class SimulationPane {
+
+    private final BorderPane root;
+    private final Pane simulationCanvas;
+    private final SimulationEngine simulationEngine;
+
+    // Map to link backend TrafficLight objects to their JavaFX visual representations
+    private Map<String, TrafficLightVisuals> trafficLightVisualsMap;
+
+    public SimulationPane(SimulationEngine engine) throws InterruptedException {
+        this.simulationEngine = engine;
+        this.root = new BorderPane();
+        this.simulationCanvas = new Pane();
+        this.trafficLightVisualsMap = new HashMap<>();
+
+        setupUI();
+        // Register this pane to be updated by the simulation engine
+        this.simulationEngine.setUiUpdateCallback(v -> {
+            try {
+                updateAllVisuals();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void setupUI() throws InterruptedException {
+        simulationCanvas.setPrefSize(SimulationConfig.SCENE_WIDTH, SimulationConfig.SCENE_HEIGHT);
+        simulationCanvas.setStyle("-fx-background-color: #89CFF0;"); // Sky blue background
+
+        // --- Draw all static visual elements ---
+        drawRoads(simulationCanvas);
+        drawRoadMarkings(simulationCanvas);
+        addPareSigns(simulationCanvas);
+        //setupTrafficLightsAndLabels(simulationCanvas);
+
+        root.setCenter(simulationCanvas);
+
+        // --- UI CONTROLS (Example: moving manual toggle button here) ---
+        Button toggleLightsButton = new Button("Manual Light Change");
+        toggleLightsButton.setOnAction(e -> simulationEngine.toggleTrafficLights());
+
+        Button addVehicleButton = new Button("Add Vehicle");
+        addVehicleButton.setOnAction(e -> simulationEngine.addRandomVehicle());
+
+        HBox buttonBox = new HBox(10, toggleLightsButton, addVehicleButton); // 10px spacing
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.setPadding(new Insets(10));
+        root.setBottom(buttonBox);
+
+        // Initial update to draw everything based on the simulation engine's initial state
+        updateAllVisuals();
+    }
+
+    public BorderPane getRoot() {
+        return root;
+    }
+
+    /**
+     * This method will be called by the SimulationEngine to trigger UI updates.
+     */
+    public void updateAllVisuals() throws InterruptedException {
+        updateTrafficLightVisuals();
+        drawVehicles();
+    }
+
+    private void updateTrafficLightVisuals() {
+        for (TrafficLight lightLogic : simulationEngine.getTrafficLights()) {
+            TrafficLightVisuals visuals = trafficLightVisualsMap.get(lightLogic.getId());
+            if (visuals != null) {
+                visuals.updateLight(lightLogic.isGreen());
+            }
+        }
+    }
+
+    // --- All your existing drawing methods go here, adapted to use SimulationConfig ---
+
+    private void drawRoads(Pane pane) {
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+
+        Rectangle horizontalRoad = new Rectangle(0, centerY - SimulationConfig.ROAD_WIDTH / 2, SimulationConfig.SCENE_WIDTH, SimulationConfig.ROAD_WIDTH);
+        horizontalRoad.setFill(Color.DARKGRAY);
+
+        Rectangle verticalRoad = new Rectangle(centerX - SimulationConfig.ROAD_WIDTH / 2, 0, SimulationConfig.ROAD_WIDTH, SimulationConfig.SCENE_HEIGHT);
+        verticalRoad.setFill(Color.DARKGRAY);
+
+        pane.getChildren().addAll(horizontalRoad, verticalRoad);
+    }
+
+    private void drawRoadMarkings(Pane pane) {
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+        Pane markingsPane = new Pane();
+
+        // --- DOUBLE SOLID YELLOW CENTER LINES ---
+        markingsPane.getChildren().add(new Rectangle(0, centerY - SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, centerX - SimulationConfig.ROAD_WIDTH / 2, SimulationConfig.LINE_THICKNESS));
+        markingsPane.getChildren().add(new Rectangle(0, centerY + SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, centerX - SimulationConfig.ROAD_WIDTH / 2, SimulationConfig.LINE_THICKNESS));
+        markingsPane.getChildren().add(new Rectangle(centerX + SimulationConfig.ROAD_WIDTH / 2, centerY - SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.SCENE_WIDTH - (centerX + SimulationConfig.ROAD_WIDTH / 2), SimulationConfig.LINE_THICKNESS));
+        markingsPane.getChildren().add(new Rectangle(centerX + SimulationConfig.ROAD_WIDTH / 2, centerY + SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.SCENE_WIDTH - (centerX + SimulationConfig.ROAD_WIDTH / 2), SimulationConfig.LINE_THICKNESS));
+        markingsPane.getChildren().add(new Rectangle(centerX - SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, 0, SimulationConfig.LINE_THICKNESS, centerY - SimulationConfig.ROAD_WIDTH / 2));
+        markingsPane.getChildren().add(new Rectangle(centerX + SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, 0, SimulationConfig.LINE_THICKNESS, centerY - SimulationConfig.ROAD_WIDTH / 2));
+        markingsPane.getChildren().add(new Rectangle(centerX - SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, centerY + SimulationConfig.ROAD_WIDTH / 2, SimulationConfig.LINE_THICKNESS, SimulationConfig.SCENE_HEIGHT - (centerY + SimulationConfig.ROAD_WIDTH / 2)));
+        markingsPane.getChildren().add(new Rectangle(centerX + SimulationConfig.CENTER_LINE_GAP / 2 - SimulationConfig.LINE_THICKNESS / 2, centerY + SimulationConfig.ROAD_WIDTH / 2, SimulationConfig.LINE_THICKNESS, SimulationConfig.SCENE_HEIGHT - (centerY + SimulationConfig.ROAD_WIDTH / 2)));
+
+        markingsPane.getChildren().stream()
+                .filter(node -> node instanceof Rectangle)
+                .forEach(node -> ((Rectangle) node).setFill(Color.YELLOW));
+
+/*        // --- WHITE DASHED LANE LINES ---
+        double laneCenterY1 = centerY - SimulationConfig.ROAD_WIDTH / 4;
+        double laneCenterY2 = centerY + SimulationConfig.ROAD_WIDTH / 4;
+        for (double x = 0; x < SimulationConfig.SCENE_WIDTH; x += SimulationConfig.DASHED_LINE_LENGTH + SimulationConfig.DASHED_LINE_GAP) {
+            if (x + SimulationConfig.DASHED_LINE_LENGTH < centerX - SimulationConfig.ROAD_WIDTH / 2 || x > centerX + SimulationConfig.ROAD_WIDTH / 2) {
+                Rectangle dash1 = new Rectangle(x, laneCenterY1 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.DASHED_LINE_LENGTH, SimulationConfig.LINE_THICKNESS);
+                Rectangle dash2 = new Rectangle(x, laneCenterY2 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.DASHED_LINE_LENGTH, SimulationConfig.LINE_THICKNESS);
+                dash1.setFill(Color.WHITE);
+                dash2.setFill(Color.WHITE);
+                markingsPane.getChildren().addAll(dash1, dash2);
+            }
+        }
+        double laneCenterX1 = centerX - SimulationConfig.ROAD_WIDTH / 4;
+        double laneCenterX2 = centerX + SimulationConfig.ROAD_WIDTH / 4;
+        for (double y = 0; y < SimulationConfig.SCENE_HEIGHT; y += SimulationConfig.DASHED_LINE_LENGTH + SimulationConfig.DASHED_LINE_GAP) {
+            if (y + SimulationConfig.DASHED_LINE_LENGTH < centerY - SimulationConfig.ROAD_WIDTH / 2 || y > centerY + SimulationConfig.ROAD_WIDTH / 2) {
+                Rectangle dash1 = new Rectangle(laneCenterX1 - SimulationConfig.LINE_THICKNESS / 2, y, SimulationConfig.LINE_THICKNESS, SimulationConfig.DASHED_LINE_LENGTH);
+                Rectangle dash2 = new Rectangle(laneCenterX2 - SimulationConfig.LINE_THICKNESS / 2, y, SimulationConfig.LINE_THICKNESS, SimulationConfig.DASHED_LINE_LENGTH);
+                dash1.setFill(Color.WHITE);
+                dash2.setFill(Color.WHITE);
+                markingsPane.getChildren().addAll(dash1, dash2);
+            }
+        }*/
+        pane.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("markingsPane"));
+        markingsPane.setUserData("markingsPane");
+        pane.getChildren().add(markingsPane);
+    }
+
+    private void setupTrafficLightsAndLabels(Pane pane) {
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+        double offset = SimulationConfig.TRAFFIC_LIGHT_OFFSET;
+
+        String southBoundText = "⬇ Tráfico Sur";
+        Group tl_NorthGroup = createTrafficLightVisualsGroup();
+        double tl_NorthX = centerX - SimulationConfig.ROAD_WIDTH / 2 - SimulationConfig.TRAFFIC_LIGHT_WIDTH - offset;
+        double tl_NorthY = centerY - SimulationConfig.ROAD_WIDTH / 2 - SimulationConfig.TRAFFIC_LIGHT_HEIGHT - offset;
+        addImprovedLightAndLabel(pane, tl_NorthGroup, tl_NorthX, tl_NorthY, southBoundText, tl_NorthX - 80, tl_NorthY - 30);
+        trafficLightVisualsMap.put("North", new TrafficLightVisuals((Circle) tl_NorthGroup.getChildren().get(4), (Circle) tl_NorthGroup.getChildren().get(5)));
+
+        String northBoundText = "⬆ Tráfico Norte";
+        Group tl_SouthGroup = createTrafficLightVisualsGroup();
+        double tl_SouthX = centerX + SimulationConfig.ROAD_WIDTH / 2 + offset;
+        double tl_SouthY = centerY + SimulationConfig.ROAD_WIDTH / 2 + offset;
+        addImprovedLightAndLabel(pane, tl_SouthGroup, tl_SouthX, tl_SouthY, northBoundText, tl_SouthX - 50, tl_SouthY + SimulationConfig.TRAFFIC_LIGHT_HEIGHT + 70);
+        trafficLightVisualsMap.put("South", new TrafficLightVisuals((Circle) tl_SouthGroup.getChildren().get(4), (Circle) tl_SouthGroup.getChildren().get(5)));
+
+        String westBoundText = "⬅ Tráfico Oeste";
+        Group tl_EastGroup = createTrafficLightVisualsGroup();
+        double tl_EastX = centerX + SimulationConfig.ROAD_WIDTH / 2 + offset;
+        double tl_EastY = centerY - SimulationConfig.ROAD_WIDTH / 2 - SimulationConfig.TRAFFIC_LIGHT_HEIGHT - offset;
+        addImprovedLightAndLabel(pane, tl_EastGroup, tl_EastX, tl_EastY, westBoundText, tl_EastX - 50, tl_EastY - 30);
+        trafficLightVisualsMap.put("East", new TrafficLightVisuals((Circle) tl_EastGroup.getChildren().get(4), (Circle) tl_EastGroup.getChildren().get(5)));
+
+        String eastBoundText = "➡ Tráfico Este";
+        Group tl_WestGroup = createTrafficLightVisualsGroup();
+        double tl_WestX = centerX - SimulationConfig.ROAD_WIDTH / 2 - SimulationConfig.TRAFFIC_LIGHT_WIDTH - offset;
+        double tl_WestY = centerY + SimulationConfig.ROAD_WIDTH / 2 + offset;
+        addImprovedLightAndLabel(pane, tl_WestGroup, tl_WestX, tl_WestY, eastBoundText, tl_WestX - 80, tl_WestY + SimulationConfig.TRAFFIC_LIGHT_HEIGHT + 70);
+        trafficLightVisualsMap.put("West", new TrafficLightVisuals((Circle) tl_WestGroup.getChildren().get(4), (Circle) tl_WestGroup.getChildren().get(5)));
+    }
+
+    private void addImprovedLightAndLabel(Pane pane, Group lightGroup, double lightX, double lightY, String labelText, double labelX, double labelY) {
+        lightGroup.setLayoutX(lightX);
+        lightGroup.setLayoutY(lightY);
+
+        Label label = new Label(labelText);
+        label.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        label.setTextFill(Color.WHITE);
+        label.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-padding: 8px; -fx-background-radius: 8; -fx-border-color: #444; -fx-border-width: 1; -fx-border-radius: 8;");
+        label.setLayoutX(labelX);
+        label.setLayoutY(labelY);
+
+        pane.getChildren().addAll(lightGroup, label);
+    }
+
+    private Group createTrafficLightVisualsGroup() {
+        Group lightGroup = new Group();
+
+        Rectangle pole = new Rectangle(8, 60);
+        pole.setFill(Color.DARKGRAY);
+        pole.setX(SimulationConfig.TRAFFIC_LIGHT_WIDTH / 2 - 4);
+        pole.setY(SimulationConfig.TRAFFIC_LIGHT_HEIGHT);
+
+        Rectangle casing = new Rectangle(SimulationConfig.TRAFFIC_LIGHT_WIDTH, SimulationConfig.TRAFFIC_LIGHT_HEIGHT);
+        casing.setFill(Color.BLACK);
+        casing.setStroke(Color.DARKGRAY);
+        casing.setStrokeWidth(2);
+        casing.setArcWidth(8);
+        casing.setArcHeight(8);
+
+        Rectangle redShade = new Rectangle(SimulationConfig.TRAFFIC_LIGHT_WIDTH - 4, 8);
+        redShade.setFill(Color.DARKGRAY);
+        redShade.setX(2);
+        redShade.setY(8);
+
+        Rectangle greenShade = new Rectangle(SimulationConfig.TRAFFIC_LIGHT_WIDTH - 4, 8);
+        greenShade.setFill(Color.DARKGRAY);
+        greenShade.setX(2);
+        greenShade.setY(SimulationConfig.LIGHT_RADIUS * 3 + SimulationConfig.LIGHT_SPACING * 2 - 8);
+
+        Circle redLight = new Circle(SimulationConfig.TRAFFIC_LIGHT_WIDTH / 2, SimulationConfig.LIGHT_RADIUS + SimulationConfig.LIGHT_SPACING, SimulationConfig.LIGHT_RADIUS - 2);
+        redLight.setFill(Color.DARKRED.desaturate());
+        redLight.setStroke(Color.BLACK);
+        redLight.setStrokeWidth(1);
+
+        Circle greenLight = new Circle(SimulationConfig.TRAFFIC_LIGHT_WIDTH / 2, SimulationConfig.LIGHT_RADIUS * 3 + SimulationConfig.LIGHT_SPACING * 2, SimulationConfig.LIGHT_RADIUS - 2);
+        greenLight.setFill(Color.DARKGREEN.desaturate());
+        greenLight.setStroke(Color.BLACK);
+        greenLight.setStrokeWidth(1);
+
+        lightGroup.getChildren().addAll(pole, casing, redShade, greenShade, redLight, greenLight);
+        return lightGroup;
+    }
+
+    private void drawVehicles() throws InterruptedException {
+        simulationCanvas.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
+
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+        double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
+
+        for (Intersection intersection : simulationEngine.getIntersections()) {
+            PriorityBlockingQueue<Vehicle> queue = intersection.getVehicleQueue();
+            for (int i = 0; i < queue.size(); i++) {
+                Vehicle v = queue.take();
+                Group vehicle = createVehicleShape(v, SimulationConfig.VEHICLE_LENGTH, SimulationConfig.VEHICLE_WIDTH);
+                double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, SimulationConfig.VEHICLE_LENGTH, i);
+                double angle = getVehicleRotation(intersection.getId());
+
+                vehicle.setLayoutX(pos[0]);
+                vehicle.setLayoutY(pos[1]);
+                vehicle.setRotate(angle);
+
+                simulationCanvas.getChildren().add(vehicle);
+            }
+        }
+    }
+
+    private Group createVehicleShape(Vehicle v, double length, double width) {
+        Group vehicleGroup = new Group();
+
+        Rectangle body = new Rectangle(length, width);
+        body.setArcWidth(5);
+        body.setArcHeight(5);
+
+        if ("emergency".equalsIgnoreCase(v.getType())) {
+            body.setFill(Color.RED);
+            body.setStroke(Color.YELLOW);
+            body.setStrokeWidth(2);
+
+            Rectangle light1 = new Rectangle(length * 0.3, 3);
+            light1.setFill(Color.YELLOW);
+            light1.setX(length * 0.1);
+            light1.setY(-2);
+
+            Rectangle light2 = new Rectangle(length * 0.3, 3);
+            light2.setFill(Color.BLUE);
+            light2.setX(length * 0.6);
+            light2.setY(-2);
+
+            vehicleGroup.getChildren().addAll(body, light1, light2);
+        } else {
+            Color[] carColors = {Color.BLUE, Color.GREEN, Color.PURPLE, Color.ORANGE, Color.BROWN, Color.NAVY};
+            body.setFill(carColors[Math.abs(v.getId().hashCode()) % carColors.length]);
+            body.setStroke(Color.BLACK);
+            body.setStrokeWidth(1);
+            vehicleGroup.getChildren().add(body);
+        }
+
+        Rectangle frontWindow = new Rectangle(length * 0.15, width * 0.6);
+        frontWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        frontWindow.setX(length * 0.75);
+        frontWindow.setY(width * 0.2);
+
+        Rectangle backWindow = new Rectangle(length * 0.15, width * 0.6);
+        backWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        backWindow.setX(length * 0.1);
+        backWindow.setY(width * 0.2);
+
+        Circle wheel1 = new Circle(length * 0.2, width + 2, 3);
+        wheel1.setFill(Color.BLACK);
+        Circle wheel2 = new Circle(length * 0.8, width + 2, 3);
+        wheel2.setFill(Color.BLACK);
+        Circle wheel3 = new Circle(length * 0.2, -2, 3);
+        wheel3.setFill(Color.BLACK);
+        Circle wheel4 = new Circle(length * 0.8, -2, 3);
+        wheel4.setFill(Color.BLACK);
+
+        vehicleGroup.getChildren().addAll(frontWindow, backWindow, wheel1, wheel2, wheel3, wheel4);
+        vehicleGroup.setUserData("vehicle");
+
+        return vehicleGroup;
+    }
+
+    private double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, double vehicleLength, int index) {
+        double x = 0, y = 0;
+        double spacing = SimulationConfig.VEHICLE_SPACING; // Use spacing from config
+
+        switch (intersectionId) {
+            case "North":
+                x = centerX - laneWidth / 2 - vehicleLength / 2;
+                y = centerY - SimulationConfig.ROAD_WIDTH / 2 - spacing * (index + 1);
+                break;
+            case "South":
+                x = centerX + laneWidth / 2 - vehicleLength / 2;
+                y = centerY + SimulationConfig.ROAD_WIDTH / 2 + spacing * (index + 1);
+                break;
+            case "East":
+                x = centerX + SimulationConfig.ROAD_WIDTH / 2 + spacing * (index + 1);
+                y = centerY - laneWidth / 2 - vehicleLength / 2;
+                break;
+            case "West":
+                x = centerX - SimulationConfig.ROAD_WIDTH / 2 - spacing * (index + 1);
+                y = centerY + laneWidth / 2 - vehicleLength / 2;
+                break;
+        }
+
+        return new double[]{x, y};
+    }
+
+    private double getVehicleRotation(String intersectionId) {
+        switch (intersectionId) {
+            case "North": return 90;
+            case "South": return 270;
+            case "East":  return 0;
+            case "West":  return 0;
+            default: return 0;
+        }
+    }
+
+    private void addPareSigns(Pane simulationPane) {
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+        double signOffset = SimulationConfig.STOP_SIGN_OFFSET;
+
+        createStopSign(simulationPane, centerX, centerY - signOffset - 60, "PARE");
+        createStopSign(simulationPane, centerX, centerY + signOffset + 60, "PARE");
+        createStopSign(simulationPane, centerX - signOffset - 60, centerY, "PARE");
+        createStopSign(simulationPane, centerX + signOffset + 60, centerY, "PARE");
+    }
+
+    private void createStopSign(Pane pane, double x, double y, String text) {
+        Group stopSignGroup = new Group();
+
+        Rectangle pole = new Rectangle(6, 40);
+        pole.setFill(Color.DARKGRAY);
+        pole.setX(-3);
+        pole.setY(25);
+
+        Rectangle signBackground = new Rectangle(50, 50);
+        signBackground.setFill(Color.RED);
+        signBackground.setStroke(Color.WHITE);
+        signBackground.setStrokeWidth(3);
+        signBackground.setArcWidth(15);
+        signBackground.setArcHeight(15);
+        signBackground.setX(-25);
+        signBackground.setY(-25);
+
+        Label pareText = new Label(text);
+        pareText.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        pareText.setTextFill(Color.WHITE);
+        pareText.setLayoutX(-18);
+        pareText.setLayoutY(-8);
+
+        stopSignGroup.getChildren().addAll(pole, signBackground, pareText);
+        stopSignGroup.setLayoutX(x);
+        stopSignGroup.setLayoutY(y);
+
+        pane.getChildren().add(stopSignGroup);
+    }
+}

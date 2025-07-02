@@ -1,5 +1,7 @@
 package app.paralelafinal.entidades;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public class Vehicle {
     private String id;
     private String type; // "normal" or "emergency"
@@ -8,6 +10,27 @@ public class Vehicle {
     private long arrivalTime;
 
     public Vehicle() {}
+
+    public Vehicle(String id, String type) {
+        this.id = id;
+        this.type = type;
+        int randomInt = ThreadLocalRandom.current().nextInt(0,4);
+        switch (randomInt) {
+            case 0:
+                this.direction = "right";
+                break;
+            case 1:
+                this.direction = "straight";
+                break;
+            case 2:
+                this.direction = "left";
+                break;
+            default:
+                this.direction = "u-turn"; // Fallback case
+        }
+        this.inIntersection = false; // Default state
+        this.arrivalTime = System.nanoTime();
+    }
 
     public Vehicle(String id, String type, String direction, boolean inIntersection) {
         this.id = id;
