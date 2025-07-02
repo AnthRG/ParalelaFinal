@@ -18,10 +18,9 @@ public class CrossroadsApp extends Application {
     @Override
     public void start(Stage primaryStage) throws InterruptedException {
         // Initialize simulation logic
-        simulationEngine = new SimulationEngine();
 
         // Initialize UI components
-        simulationPane = new SimulationPane(simulationEngine); // Pass engine to pane for drawing state
+        simulationPane = SimulationPane.getInstance(); // Pass engine to pane for drawing state
 
         // Setup UI (buttons, etc.) - could be handled by a UIController or directly in SimulationPane
         // Example: If you have a separate UIController
@@ -34,10 +33,10 @@ public class CrossroadsApp extends Application {
         primaryStage.show();
 
         // Start simulation updates (e.g., traffic light cycles, vehicle movements)
-        simulationEngine.startSimulation();
+        simulationPane.getSimulationEngine().startSimulation();
 
         primaryStage.setOnCloseRequest(event -> {
-            simulationEngine.stopSimulation();
+            simulationPane.getSimulationEngine().stopSimulation();
         });
     }
 

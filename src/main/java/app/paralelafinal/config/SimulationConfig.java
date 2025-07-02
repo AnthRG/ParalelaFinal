@@ -21,7 +21,7 @@ public class SimulationConfig {
 
     // --- SIMULATION TIMING ---
     public static final long TRAFFIC_LIGHT_SWITCH_INTERVAL_SECONDS = 10;
-    public static final long VEHICLE_UPDATE_INTERVAL_MS = 1000;
+    public static final long VEHICLE_UPDATE_INTERVAL_MS = 500;
 
     // --- VEHICLE DIMENSIONS ---
     public static final double VEHICLE_LENGTH = 40;

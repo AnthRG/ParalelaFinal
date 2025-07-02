@@ -1,5 +1,9 @@
 package app.paralelafinal.entidades;
 
+import app.paralelafinal.simulation.SimulationPane;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 
 public class Intersection {
@@ -62,5 +66,15 @@ public class Intersection {
     }
     public Vehicle peekNextVehicle() {
         return vehicleQueue.peek();
+    }
+
+
+    public void processVehicle() throws InterruptedException {
+        vehicleQueue.poll();
+        //SimulationPane.getInstance().drawFinishedVehicles(vehicleQueue.poll(), this.id);
+    }
+
+    public List<Vehicle> getAllFrontVehicles() {
+        return new ArrayList<>(vehicleQueue);
     }
 }

@@ -2,7 +2,6 @@
 package app.paralelafinal.simulation;
 
 import app.paralelafinal.config.SimulationConfig;
-import app.paralelafinal.controladores.TrafficController;
 import app.paralelafinal.entidades.Intersection;
 import app.paralelafinal.entidades.TrafficLight;
 import app.paralelafinal.entidades.Vehicle;
@@ -21,28 +20,26 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
 
 public class SimulationPane {
 
-    private final BorderPane root;
-    private final Pane simulationCanvas;
-    private final SimulationEngine simulationEngine;
-
+    private static BorderPane root;
+    private static Pane simulationCanvas;
+    private static SimulationEngine simulationEngine;
+    private static SimulationPane simulationPane;
     // Map to link backend TrafficLight objects to their JavaFX visual representations
     private Map<String, TrafficLightVisuals> trafficLightVisualsMap;
 
     public SimulationPane(SimulationEngine engine) throws InterruptedException {
-        this.simulationEngine = engine;
-        this.root = new BorderPane();
-        this.simulationCanvas = new Pane();
+        simulationEngine = engine;
+        root = new BorderPane();
+        simulationCanvas = new Pane();
         this.trafficLightVisualsMap = new HashMap<>();
-
         setupUI();
         // Register this pane to be updated by the simulation engine
-        this.simulationEngine.setUiUpdateCallback(v -> {
+        simulationEngine.setUiUpdateCallback(v -> {
             try {
                 updateAllVisuals();
             } catch (InterruptedException e) {
@@ -51,7 +48,18 @@ public class SimulationPane {
         });
     }
 
-    private void setupUI() throws InterruptedException {
+    public static SimulationEngine getSimulationEngine() {
+        return simulationEngine;
+    }
+
+    public static SimulationPane getInstance() throws InterruptedException {
+        if(simulationPane == null) {
+            simulationPane = new SimulationPane(new SimulationEngine());
+        }
+        return simulationPane;
+    }
+
+    private static void setupUI() throws InterruptedException {
         simulationCanvas.setPrefSize(SimulationConfig.SCENE_WIDTH, SimulationConfig.SCENE_HEIGHT);
         simulationCanvas.setStyle("-fx-background-color: #89CFF0;"); // Sky blue background
 
@@ -82,7 +90,7 @@ public class SimulationPane {
     /**
      * This method will be called by the SimulationEngine to trigger UI updates.
      */
-    public void updateAllVisuals() throws InterruptedException {
+    public static void updateAllVisuals() throws InterruptedException {
         //updateTrafficLightVisuals();
         drawVehicles();
     }
@@ -98,7 +106,7 @@ public class SimulationPane {
 
     // --- All your existing drawing methods go here, adapted to use SimulationConfig ---
 
-    private void drawRoads(Pane pane) {
+    private static void drawRoads(Pane pane) {
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
         double centerY = SimulationConfig.SCENE_HEIGHT / 2;
 
@@ -111,7 +119,7 @@ public class SimulationPane {
         pane.getChildren().addAll(horizontalRoad, verticalRoad);
     }
 
-    private void drawRoadMarkings(Pane pane) {
+    private static void drawRoadMarkings(Pane pane) {
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
         double centerY = SimulationConfig.SCENE_HEIGHT / 2;
         Pane markingsPane = new Pane();
@@ -245,7 +253,7 @@ public class SimulationPane {
         return lightGroup;
     }
 
-    private void drawVehicles() throws InterruptedException {
+    private static void drawVehicles() throws InterruptedException {
         simulationCanvas.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
 
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
@@ -256,8 +264,8 @@ public class SimulationPane {
             PriorityBlockingQueue<Vehicle> queue = intersection.getVehicleQueue();
             for (int i = 0; i < queue.size(); i++) {
                 Vehicle v = queue.peek();
-                Group vehicle = createVehicleShape(v, SimulationConfig.VEHICLE_LENGTH, SimulationConfig.VEHICLE_WIDTH);
-                double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, SimulationConfig.VEHICLE_LENGTH, i);
+                Group vehicle = createVehicleShape(v);
+                double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, i);
                 double angle = getVehicleRotation(intersection.getId());
 
                 vehicle.setLayoutX(pos[0]);
@@ -269,10 +277,10 @@ public class SimulationPane {
         }
     }
 
-    private Group createVehicleShape(Vehicle v, double length, double width) {
+    private static Group createVehicleShape(Vehicle v) {
         Group vehicleGroup = new Group();
 
-        Rectangle body = new Rectangle(length, width);
+        Rectangle body = new Rectangle(SimulationConfig.VEHICLE_LENGTH, SimulationConfig.VEHICLE_WIDTH);
         body.setArcWidth(5);
         body.setArcHeight(5);
 
@@ -281,14 +289,14 @@ public class SimulationPane {
             body.setStroke(Color.YELLOW);
             body.setStrokeWidth(2);
 
-            Rectangle light1 = new Rectangle(length * 0.3, 3);
+            Rectangle light1 = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.3, 3);
             light1.setFill(Color.YELLOW);
-            light1.setX(length * 0.1);
+            light1.setX(SimulationConfig.VEHICLE_LENGTH * 0.1);
             light1.setY(-2);
 
-            Rectangle light2 = new Rectangle(length * 0.3, 3);
+            Rectangle light2 = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.3, 3);
             light2.setFill(Color.BLUE);
-            light2.setX(length * 0.6);
+            light2.setX(SimulationConfig.VEHICLE_LENGTH * 0.6);
             light2.setY(-2);
 
             vehicleGroup.getChildren().addAll(body, light1, light2);
@@ -300,23 +308,23 @@ public class SimulationPane {
             vehicleGroup.getChildren().add(body);
         }
 
-        Rectangle frontWindow = new Rectangle(length * 0.15, width * 0.6);
+        Rectangle frontWindow = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.15, SimulationConfig.VEHICLE_WIDTH * 0.6);
         frontWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
-        frontWindow.setX(length * 0.75);
-        frontWindow.setY(width * 0.2);
+        frontWindow.setX(SimulationConfig.VEHICLE_LENGTH * 0.75);
+        frontWindow.setY(SimulationConfig.VEHICLE_WIDTH * 0.2);
 
-        Rectangle backWindow = new Rectangle(length * 0.15, width * 0.6);
+        Rectangle backWindow = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.15, SimulationConfig.VEHICLE_WIDTH * 0.6);
         backWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
-        backWindow.setX(length * 0.1);
-        backWindow.setY(width * 0.2);
+        backWindow.setX(SimulationConfig.VEHICLE_LENGTH * 0.1);
+        backWindow.setY(SimulationConfig.VEHICLE_WIDTH * 0.2);
 
-        Circle wheel1 = new Circle(length * 0.2, width + 2, 3);
+        Circle wheel1 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.2, SimulationConfig.VEHICLE_WIDTH + 2, 3);
         wheel1.setFill(Color.BLACK);
-        Circle wheel2 = new Circle(length * 0.8, width + 2, 3);
+        Circle wheel2 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.8, SimulationConfig.VEHICLE_WIDTH + 2, 3);
         wheel2.setFill(Color.BLACK);
-        Circle wheel3 = new Circle(length * 0.2, -2, 3);
+        Circle wheel3 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.2, -2, 3);
         wheel3.setFill(Color.BLACK);
-        Circle wheel4 = new Circle(length * 0.8, -2, 3);
+        Circle wheel4 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.8, -2, 3);
         wheel4.setFill(Color.BLACK);
 
         vehicleGroup.getChildren().addAll(frontWindow, backWindow, wheel1, wheel2, wheel3, wheel4);
@@ -325,33 +333,33 @@ public class SimulationPane {
         return vehicleGroup;
     }
 
-    private double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, double vehicleLength, int index) {
+    private static double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, int index) {
         double x = 0, y = 0;
         double spacing = SimulationConfig.VEHICLE_SPACING; // Use spacing from config
 
         switch (intersectionId) {
             case "North":
-                x = centerX - laneWidth / 2 - vehicleLength / 2;
+                x = centerX - laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
                 y = centerY - SimulationConfig.ROAD_WIDTH / 2 - spacing * (index + 1);
                 break;
             case "South":
-                x = centerX + laneWidth / 2 - vehicleLength / 2;
+                x = centerX + laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
                 y = centerY + SimulationConfig.ROAD_WIDTH / 2 + spacing * (index + 1);
                 break;
             case "East":
                 x = centerX + SimulationConfig.ROAD_WIDTH / 2 + spacing * (index + 1);
-                y = centerY - laneWidth / 2 - vehicleLength / 2;
+                y = centerY - laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
                 break;
             case "West":
                 x = centerX - SimulationConfig.ROAD_WIDTH / 2 - spacing * (index + 1);
-                y = centerY + laneWidth / 2 - vehicleLength / 2;
+                y = centerY + laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
                 break;
         }
 
         return new double[]{x, y};
     }
 
-    private double getVehicleRotation(String intersectionId) {
+    private static double getVehicleRotation(String intersectionId) {
         switch (intersectionId) {
             case "North": return 90;
             case "South": return 270;
@@ -361,7 +369,104 @@ public class SimulationPane {
         }
     }
 
-    private void addPareSigns(Pane simulationPane) {
+    private double[] getFinishedVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth) {
+        double x = 0, y = 0;
+        double spacing = SimulationConfig.VEHICLE_SPACING; // Use spacing from config
+
+        switch (intersectionId) {
+            case "North":
+                x = centerX + laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
+                y = centerY - SimulationConfig.ROAD_WIDTH / 2 - spacing;
+                break;
+            case "South":
+                x = centerX - laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
+                y = centerY + SimulationConfig.ROAD_WIDTH / 2 + spacing;
+                break;
+            case "East":
+                x = centerX + SimulationConfig.ROAD_WIDTH / 2 + spacing;
+                y = centerY + laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
+                break;
+            case "West":
+                x = centerX - SimulationConfig.ROAD_WIDTH / 2 - spacing;
+                y = centerY - laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
+
+                break;
+        }
+
+        return new double[]{x, y};
+    }
+
+    public static String getFinishedVehicleLocation(Vehicle finishedVehicle, String finishedLoc) {
+        if (finishedLoc.equalsIgnoreCase("North")) {
+            return switch (finishedVehicle.getDirection()) {
+                // "right", "straight", "left", "u-turn"
+                case "right" -> "East";
+                case "left" -> "West";
+                case "straight" -> "South";
+                default -> "North";
+            };
+        }else if(finishedLoc.equalsIgnoreCase("South")){
+            return switch (finishedVehicle.getDirection()) {
+                // "right", "straight", "left", "u-turn"
+                case "left" -> "East";
+                case "right" -> "West";
+                case "straight" -> "North";
+                default -> "South";
+            };
+
+        }else if(finishedLoc.equalsIgnoreCase("East")){
+            return switch (finishedVehicle.getDirection()) {
+                // "right", "straight", "left", "u-turn"
+                case "right" -> "North";
+                case "left" -> "South";
+                case "straight" -> "West";
+                default -> "East";
+            };
+
+        }else { // west
+            return switch (finishedVehicle.getDirection()) {
+                // "right", "straight", "left", "u-turn"
+                case "right" -> "South";
+                case "left" -> "North";
+                case "straight" -> "East";
+                default -> "West";
+            };
+
+        }
+
+    }
+
+    private double getFinishedVehicleRotation(String intersectionId) {
+        if (intersectionId.equalsIgnoreCase("North") || intersectionId.equalsIgnoreCase("South")) {
+            return 90;
+        }else {
+            return 0;
+        }
+    }
+
+    public void drawFinishedVehicles(Vehicle finishedVehicle, String intersectionid) throws InterruptedException {
+        simulationCanvas.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
+
+        double centerX = SimulationConfig.SCENE_WIDTH / 2;
+        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
+        double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
+
+        String finishedLoc = getFinishedVehicleLocation(finishedVehicle, intersectionid);
+
+        Group vehicle = createVehicleShape(finishedVehicle);
+        double[] pos = getFinishedVehiclePosition(finishedLoc, centerX, centerY, laneWidth);
+        double angle = getFinishedVehicleRotation(finishedLoc);
+
+        vehicle.setLayoutX(pos[0]);
+        vehicle.setLayoutY(pos[1]);
+        vehicle.setRotate(angle);
+
+        simulationCanvas.getChildren().add(vehicle);
+
+
+    }
+
+    private static void addPareSigns(Pane simulationPane) {
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
         double centerY = SimulationConfig.SCENE_HEIGHT / 2;
         double signOffset = 5 + (SimulationConfig.ROAD_WIDTH / 2);
@@ -372,7 +477,7 @@ public class SimulationPane {
         createStopSign(simulationPane, centerX - signOffset - 20, centerY - signOffset * 2 + 20, "PARE");
     }
 
-    private void createStopSign(Pane pane, double x, double y, String text) {
+    private static void createStopSign(Pane pane, double x, double y, String text) {
         Group stopSignGroup = new Group();
 
         Rectangle pole = new Rectangle(6, 40);

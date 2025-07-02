@@ -13,6 +13,7 @@ module app.paralelafinal {
     requires org.kordamp.bootstrapfx.core;
     requires eu.hansolo.tilesfx;
     requires com.almasb.fxgl.all;
+    requires annotations;
 
     opens app.paralelafinal to javafx.fxml;
     exports app.paralelafinal;
