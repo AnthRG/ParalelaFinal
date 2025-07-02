@@ -40,15 +40,16 @@ public class TrafficController {
     private void manageIntersections() {
         int i =0;
         int imayor = 0;
-        long mayor = 0;
+        long mayor = -1000000;
         for (Intersection intersection : intersections) {
             Vehicle nextVehicle = intersection.getVehicleQueue().peek();
             if(nextVehicle != null){
-                if(nextVehicle.getArrivalTime() - System.nanoTime() > mayor) {
+                if(System.nanoTime() - nextVehicle.getArrivalTime() > mayor) {
                     mayor = nextVehicle.getArrivalTime();
                     imayor = i;
                 }
             }
+            i++;
         }
         Vehicle vehicle = intersections.get(imayor).getNextVehicle();
     }
