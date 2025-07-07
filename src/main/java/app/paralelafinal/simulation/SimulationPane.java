@@ -4,8 +4,7 @@ package app.paralelafinal.simulation;
 import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.entidades.Intersection;
 import app.paralelafinal.entidades.TrafficLight;
-import app.paralelafinal.entidades.Vehicle;
-
+import app.paralelafinal.entidades.Vehicle; 
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -308,34 +307,41 @@ public class SimulationPane {
         return lightGroup;
     }
 
-    private static void drawVehicles() throws InterruptedException {
-        // Elimina todos los viejos sprites de vehículos
+    private static void drawVehicles() {
+        // Brra todos los sprites de vehículos anteriores
         simulationCanvas.getChildren().removeIf(node ->
             "vehicle".equals(node.getUserData())
         );
 
-        double centerX   = SimulationConfig.SCENE_WIDTH  / 2.0;
-        double centerY   = SimulationConfig.SCENE_HEIGHT / 2.0;
-        double laneWidth = SimulationConfig.ROAD_WIDTH   / 2.0;
+        //  Calcula una vez el centro de la intersección
+        Point2D center = new Point2D(
+            SimulationConfig.SCENE_WIDTH  / 2.0,
+            SimulationConfig.SCENE_HEIGHT / 2.0
+        );
 
-        // Por cada intersección y por cada vehículo en su cola...
+        //  Por cada intersección y cada vehículo en su cola...
         for (Intersection intersection : simulationEngine.getIntersections()) {
-            PriorityBlockingQueue<Vehicle> queue = intersection.getVehicleQueue();
-            for (Vehicle v : queue) {
-                // Crea el sprite y márcalo como "vehicle"
+            for (Vehicle v : intersection.getVehicleQueue()) {
+                // Crea el sprite y márcalo
                 Group sprite = createVehicleShape(v);
                 sprite.setUserData("vehicle");
 
-                // Rótalo según venga de North/South/East/West
-                double angle = getVehicleRotation(intersection.getId());
+                //  Obtiene el vector unitario de movimiento
+                Point2D heading = simulationEngine.computeDelta(intersection, v, 1.0, center);
+
+                //  Convierte ese vector a un ángulo en grados [0,360)
+                double rawAngle = Math.toDegrees(Math.atan2(heading.getY(), heading.getX()));
+                double angle    = (rawAngle + 360) % 360;
+
+                //  Aplica la rotación al sprite
                 sprite.setRotate(angle);
 
-                // Colócalo en su posición lógica (previo cálculo en addVehicle)
+                //  Y lo posiciona según la coordenada lógica del vehículo
                 Point2D pos = v.getPosition();
                 sprite.setLayoutX(pos.getX());
                 sprite.setLayoutY(pos.getY());
 
-                // Agrégalo al canvas
+                //  Finalmente, añádelo al canvas de simulación
                 simulationCanvas.getChildren().add(sprite);
             }
         }

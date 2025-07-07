@@ -214,7 +214,7 @@ public class SimulationEngine {
 /**
  * Delta X/Y según origen, maniobra y posición relativa al centro.
  */
-    private Point2D computeDelta(Intersection inter, Vehicle v, double speed, Point2D center) {
+    public Point2D computeDelta(Intersection inter, Vehicle v, double speed, Point2D center) {
         String origin = inter.getId().toLowerCase();
         String cmd    = v.getDirection().toLowerCase();
         Point2D pos   = v.getPosition();
