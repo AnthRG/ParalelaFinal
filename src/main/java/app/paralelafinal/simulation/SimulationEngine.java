@@ -14,6 +14,7 @@ import javafx.geometry.Point2D;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executors;
@@ -150,38 +151,65 @@ public class SimulationEngine {
 
 
     private void moveVehicles() {
-        double speed = 5.0;
+        double speed   = 5.0;
+        double safeGap = 5.0;  // espacio mínimo entre vehículos
 
-        // Calcula el centro de la intersección
+        // 1) Centro de la intersección
         Point2D center = new Point2D(
             SimulationConfig.SCENE_WIDTH  / 2.0,
             SimulationConfig.SCENE_HEIGHT / 2.0
         );
-        //  Distancia hasta la línea de PARE: mitad de la carretera + mitad del largo del vehículo
+        // 2) Línea de PARE (distancia del centro en la que arrancan a “frenar”)
         double stopLineDist = SimulationConfig.ROAD_WIDTH / 2.0
                             + SimulationConfig.VEHICLE_LENGTH / 2.0;
+        // 3) Umbral de REMOCIÓN: cuando el coche lo sobrepasa, lo quitas
+        double removeDist = stopLineDist + SimulationConfig.VEHICLE_LENGTH;
 
-        //  Por cada intersección…
         for (Intersection intersection : intersections) {
             boolean green = intersection.hasGreenLight();
 
-            //  Por cada vehículo en la cola…
-            for (Vehicle v : intersection.getVehicleQueue()) {
+            // --- 4) Snapshot ordenado de la cola (prioridad + tiempo de llegada) ---
+            List<Vehicle> ordered = new ArrayList<>(intersection.getVehicleQueue());
+            Comparator<? super Vehicle> cmp = intersection.getVehicleQueue().comparator();
+            if (cmp != null) ordered.sort(cmp);
+
+            // 5) Procesa cabeza, segundo, tercero…
+            for (int i = 0; i < ordered.size(); i++) {
+                Vehicle v = ordered.get(i);
                 Point2D pos = v.getPosition();
-                double distToCenter = pos.distance(center);
+                double dist = pos.distance(center);
 
-                //  Si NO es el primero (head) y ya llegó a la línea de PARE → se detiene
-                if (!intersection.canProceed(v) && distToCenter <= stopLineDist) {
+                // LÓGICA DE CABEZA (i==0)
+                if (i == 0) {
+                    // 1) Si llegó a la línea de PARE y la luz está en rojo → no se mueve
+                    if (dist <= stopLineDist && !green) {
+                        continue;
+                    }
+                    // 2) Si ya cruzó completamente y estaba en verde → lo quitas de la cola
+                    if (dist > removeDist && green) {
+                        intersection.removeNextVehicle();
+                        continue;
+                    }
+                    // 3) Si está permitido, calculas su delta más abajo
+                }
+                // =====  B) SEGUIDORES (i>0): sólo espaciamiento =====
+                else {
+                    // Obtén la posición del vehículo anterior
+                    Point2D prevPos = ordered.get(i - 1).getPosition();
+                    // Calculamos delta para ver hasta dónde querría moverse…
+                    Point2D delta = computeDelta(intersection.getId(), v.getDirection(), speed);
+                    Point2D nextPos = pos.add(delta);
+                    // Si al moverlo choca (< largo+gap) con el anterior → no se mueve
+                    if (nextPos.distance(prevPos) < SimulationConfig.VEHICLE_LENGTH + safeGap) {
+                        continue;
+                    }
+                    // Si no choca, lo movemos (y saltamos el resto de chequeos)
+                    v.setPosition(nextPos);
                     continue;
                 }
-                // Si es head pero la luz está en rojo y aún no cruzó → espera en PARE
-                if ( intersection.canProceed(v)
-                  && !green
-                  && distToCenter <= stopLineDist) {
-                    continue;
-                }
 
-                // Calcula el vector de movimiento según origen y dirección
+                // =====  C) Movimiento normal de la cabeza =====
+                // calculamos delta tal y como ya tenías
                 Point2D delta;
                 switch (intersection.getId().toLowerCase()) {
                     case "north":
@@ -191,7 +219,7 @@ public class SimulationEngine {
                             delta = new Point2D( speed, 0);
                         } else if ("left".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(-speed, 0);
-                        } else { // u-turn
+                        } else {
                             delta = new Point2D(0, -speed);
                         }
                         break;
@@ -232,18 +260,48 @@ public class SimulationEngine {
                         delta = new Point2D(speed, 0);
                 }
 
-                // Mueve el vehículo
-                Point2D newPos = pos.add(delta);
-                v.setPosition(newPos);
-
-                // Si era head, la luz estaba en verde y ya sobrepasó la intersección → remuévelo
-                double newDist = newPos.distance(center);
-                if ( intersection.canProceed(v)
-                  && green
-                  && newDist > stopLineDist + SimulationConfig.VEHICLE_LENGTH) {
-                    intersection.removeNextVehicle();
-                }
+                // Aplica movimiento a la cabeza
+                v.setPosition(pos.add(delta));
             }
+        }
+    }
+
+    /** 
+     * Extrae exactamente el delta que se usa para cabeza y compatibles. 
+    
+     */
+    private Point2D computeDelta(String intersectionId, String direction, double speed) {
+        switch (intersectionId.toLowerCase()) {
+          case "north":
+            switch(direction.toLowerCase()) {
+              case "straight": return new Point2D(0, speed);
+              case "right":    return new Point2D(speed, 0);
+              case "left":     return new Point2D(-speed,0);
+              default:         return new Point2D(0,-speed);
+            }
+          case "south":
+            switch(direction.toLowerCase()) {
+              case "straight": return new Point2D(0, -speed);
+              case "right":    return new Point2D(-speed,0);
+              case "left":     return new Point2D(speed, 0);
+              default:         return new Point2D(0, speed);
+            }
+          case "east":
+            switch(direction.toLowerCase()) {
+              case "straight": return new Point2D(-speed,0);
+              case "right":    return new Point2D(0, speed);
+              case "left":     return new Point2D(0,-speed);
+              default:         return new Point2D(speed,0);
+            }
+          case "west":
+            switch(direction.toLowerCase()) {
+              case "straight": return new Point2D(speed,0);
+              case "right":    return new Point2D(0,-speed);
+              case "left":     return new Point2D(0, speed);
+              default:         return new Point2D(-speed,0);
+            }
+          default:
+            return new Point2D(speed,0);
         }
     }
 }
