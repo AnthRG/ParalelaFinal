@@ -1,7 +1,4 @@
 package app.paralelafinal.entidades;
-
-import app.paralelafinal.simulation.SimulationPane;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -10,71 +7,64 @@ public class Intersection {
     private String id;
     private boolean rightTurnAllowed;
     private PriorityBlockingQueue<Vehicle> vehicleQueue;
+    private boolean greenLight;  
 
     public Intersection(String id, boolean rightTurnAllowed) {
         this.id = id;
         this.rightTurnAllowed = rightTurnAllowed;
         this.vehicleQueue = new PriorityBlockingQueue<>(10, (v1, v2) -> {
-            // Priority comparison logic:
-            // 1. Emergency vehicles have highest priority.
-            // 2. For vehicles of the same type, earlier arrival time has higher priority.
-
-            boolean v1IsEmergency = "emergency".equalsIgnoreCase(v1.getType());
-            boolean v2IsEmergency = "emergency".equalsIgnoreCase(v2.getType());
-
-            if (v1IsEmergency && !v2IsEmergency) {
-                return -1; // v1 has higher priority
-            }
-            if (!v1IsEmergency && v2IsEmergency) {
-                return 1; // v2 has higher priority
-            }
-
-            return Long.compare(v1.getArrivalTime(), v2.getArrivalTime()); // Earlier arrival time gets higher priority
+            // 1) Emergencias primero
+            boolean v1Emer = "emergency".equalsIgnoreCase(v1.getType());
+            boolean v2Emer = "emergency".equalsIgnoreCase(v2.getType());
+            if (v1Emer && !v2Emer) return -1;
+            if (!v1Emer && v2Emer) return 1;
+            // 2) Luego por tiempo de llegada (más antiguo, más prioridad)
+            return Long.compare(v1.getArrivalTime(), v2.getArrivalTime());
         });
     }
 
-    public String getId() {
-        return id;
+    // --- getters y setters básicos ---
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public boolean isRightTurnAllowed() { return rightTurnAllowed; }
+    public void setRightTurnAllowed(boolean allowed) { this.rightTurnAllowed = allowed; }
+
+    public PriorityBlockingQueue<Vehicle> getVehicleQueue() { return vehicleQueue; }
+    public void setVehicleQueue(PriorityBlockingQueue<Vehicle> q) { this.vehicleQueue = q; }
+
+    /** Encola un vehículo (se añade según prioridad) */
+    public void addVehicle(Vehicle v) {
+        vehicleQueue.add(v);
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public boolean isRightTurnAllowed() {
-        return rightTurnAllowed;
-    }
-
-    public void setRightTurnAllowed(boolean rightTurnAllowed) {
-        this.rightTurnAllowed = rightTurnAllowed;
-    }
-
-    public PriorityBlockingQueue<Vehicle> getVehicleQueue() {
-        return vehicleQueue;
-    }
-
-    public void setVehicleQueue(PriorityBlockingQueue<Vehicle> vehicleQueue) {
-        this.vehicleQueue = vehicleQueue;
-    }
-
-    public void addVehicle(Vehicle vehicle) {
-        vehicleQueue.add(vehicle);
-    }
-
-    public Vehicle getNextVehicle() {
-        return vehicleQueue.poll();
-    }
+    /** Devuelve sin quitar el vehículo que está al frente de la cola */
     public Vehicle peekNextVehicle() {
         return vehicleQueue.peek();
     }
 
-
-    public void processVehicle() throws InterruptedException {
+    /** Quita de la cola al vehículo que acaba de cruzar */
+    public void removeNextVehicle() {
         vehicleQueue.poll();
-        //SimulationPane.getInstance().drawFinishedVehicles(vehicleQueue.poll(), this.id);
     }
 
+    
+    public boolean canProceed(Vehicle v) {
+        return v.equals(vehicleQueue.peek());
+    }
+
+    
     public List<Vehicle> getAllFrontVehicles() {
         return new ArrayList<>(vehicleQueue);
+    }
+
+    public void processVehicle() {
+        removeNextVehicle();
+    }
+      public void setGreenLight(boolean on) {
+        this.greenLight = on;
+    }
+    public boolean hasGreenLight() {
+        return greenLight;
     }
 }

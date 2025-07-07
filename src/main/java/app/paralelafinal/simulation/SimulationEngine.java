@@ -150,23 +150,48 @@ public class SimulationEngine {
 
 
     private void moveVehicles() {
-        // Definir una velocidad en píxeles; ajusta este valor según convenga
         double speed = 5.0;
-        // Para cada intersección y cada vehículo, calcula el vector de movimiento
+
+        // Calcula el centro de la intersección
+        Point2D center = new Point2D(
+            SimulationConfig.SCENE_WIDTH  / 2.0,
+            SimulationConfig.SCENE_HEIGHT / 2.0
+        );
+        //  Distancia hasta la línea de PARE: mitad de la carretera + mitad del largo del vehículo
+        double stopLineDist = SimulationConfig.ROAD_WIDTH / 2.0
+                            + SimulationConfig.VEHICLE_LENGTH / 2.0;
+
+        //  Por cada intersección…
         for (Intersection intersection : intersections) {
-            for (Vehicle v : intersection.getVehicleQueue()) {  
-                Point2D currentPos = v.getPosition();
-                Point2D delta = Point2D.ZERO;
-                
+            boolean green = intersection.hasGreenLight();
+
+            //  Por cada vehículo en la cola…
+            for (Vehicle v : intersection.getVehicleQueue()) {
+                Point2D pos = v.getPosition();
+                double distToCenter = pos.distance(center);
+
+                //  Si NO es el primero (head) y ya llegó a la línea de PARE → se detiene
+                if (!intersection.canProceed(v) && distToCenter <= stopLineDist) {
+                    continue;
+                }
+                // Si es head pero la luz está en rojo y aún no cruzó → espera en PARE
+                if ( intersection.canProceed(v)
+                  && !green
+                  && distToCenter <= stopLineDist) {
+                    continue;
+                }
+
+                // Calcula el vector de movimiento según origen y dirección
+                Point2D delta;
                 switch (intersection.getId().toLowerCase()) {
                     case "north":
                         if ("straight".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(0, speed);
+                            delta = new Point2D(0,  speed);
                         } else if ("right".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(speed, 0);
+                            delta = new Point2D( speed, 0);
                         } else if ("left".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(-speed, 0);
-                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                        } else { // u-turn
                             delta = new Point2D(0, -speed);
                         }
                         break;
@@ -176,40 +201,48 @@ public class SimulationEngine {
                         } else if ("right".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(-speed, 0);
                         } else if ("left".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(speed, 0);
-                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(0, speed);
+                            delta = new Point2D( speed, 0);
+                        } else {
+                            delta = new Point2D(0,  speed);
                         }
                         break;
                     case "east":
                         if ("straight".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(-speed, 0);
                         } else if ("right".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(0, speed);
+                            delta = new Point2D(0,  speed);
                         } else if ("left".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(0, -speed);
-                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(speed, 0);
+                        } else {
+                            delta = new Point2D( speed, 0);
                         }
                         break;
                     case "west":
                         if ("straight".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(speed, 0);
+                            delta = new Point2D( speed, 0);
                         } else if ("right".equalsIgnoreCase(v.getDirection())) {
                             delta = new Point2D(0, -speed);
                         } else if ("left".equalsIgnoreCase(v.getDirection())) {
-                            delta = new Point2D(0, speed);
-                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0,  speed);
+                        } else {
                             delta = new Point2D(-speed, 0);
                         }
                         break;
                     default:
                         delta = new Point2D(speed, 0);
-                        break;
                 }
-                
-                Point2D newPos = currentPos.add(delta);
+
+                // Mueve el vehículo
+                Point2D newPos = pos.add(delta);
                 v.setPosition(newPos);
+
+                // Si era head, la luz estaba en verde y ya sobrepasó la intersección → remuévelo
+                double newDist = newPos.distance(center);
+                if ( intersection.canProceed(v)
+                  && green
+                  && newDist > stopLineDist + SimulationConfig.VEHICLE_LENGTH) {
+                    intersection.removeNextVehicle();
+                }
             }
         }
     }

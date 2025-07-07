@@ -86,51 +86,35 @@ public class TrafficController {
     }
 
     private void processCompatibleVehi(Vehicle vehicle) throws InterruptedException {
-        for (Intersection intersection : intersections) {
-            boolean foundVehicle = false;
-            for (Intersection value : intersections) {
-                if (value.peekNextVehicle() != null) {
-                    if (value.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
-                        value.processVehicle();
-                        switch (value.getId()) {
-                            // 0 North
-                            // 1 South
-                            // 2 East
-                            // 3 West
-                            case "North":
-                                intersections.get(1).processVehicle();
-                                break;
-                            case "South":
-                                intersections.get(0).processVehicle();
-                                break;
-                            case "East":
-                                intersections.get(3).processVehicle();
-                                break;
-                            case "West":
-                                intersections.get(2).processVehicle();
-                                break;
-                            default:
-                                break;
-                        }
-                        break;
+        for (Intersection inter : intersections) {
+            if (inter.peekNextVehicle() != null
+              && inter.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
+                // Enciende verde
+                inter.setGreenLight(true);
+                // Apaga verde tras el ciclo (2s en este ejemplo)
+                scheduler.schedule(() -> inter.setGreenLight(false), 2, TimeUnit.SECONDS);
 
-                    }
-
+                // Lógica de intersecciones cruzadas
+                switch (inter.getId()) {
+                    case "North" -> intersections.get(1).setGreenLight(true);
+                    case "South" -> intersections.get(0).setGreenLight(true);
+                    case "East"  -> intersections.get(3).setGreenLight(true);
+                    case "West"  -> intersections.get(2).setGreenLight(true);
                 }
+                break;
             }
-
         }
-
     }
 
     private void processVehicle(@NotNull Vehicle vehicle) throws InterruptedException {
-        for (Intersection intersection : intersections) {
-            if (intersection.peekNextVehicle() != null) {
-                if (intersection.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
-                    intersection.processVehicle();
-                    break;
-                }
-
+        for (Intersection inter : intersections) {
+            if (inter.peekNextVehicle() != null
+             && inter.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
+                // Enciende verde para que avance
+                inter.setGreenLight(true);
+                // Apaga verde tras el ciclo
+                scheduler.schedule(() -> inter.setGreenLight(false), 2, TimeUnit.SECONDS);
+                break;
             }
         }
     }
