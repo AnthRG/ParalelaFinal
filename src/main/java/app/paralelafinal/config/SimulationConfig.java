@@ -3,7 +3,7 @@ package app.paralelafinal.config;
 public class SimulationConfig {
     // --- SCENE & ROAD DIMENSIONS ---
     public static final double SCENE_WIDTH = 1200;
-    public static final double SCENE_HEIGHT = 900;
+    public static final double SCENE_HEIGHT = 700;
     public static final double ROAD_WIDTH = 160;
 
     // --- ROAD MARKING DIMENSIONS ---

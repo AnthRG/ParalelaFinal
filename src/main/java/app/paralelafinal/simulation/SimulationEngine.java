@@ -7,7 +7,12 @@ import app.paralelafinal.entidades.Intersection;
 import app.paralelafinal.entidades.TrafficLight;
 import app.paralelafinal.entidades.Vehicle;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.geometry.Point2D;
+import javafx.util.Duration;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -27,6 +32,8 @@ public class SimulationEngine {
 
     // Callback for UI updates
     private Consumer<Void> uiUpdateCallback;
+
+    private Timeline animation;
 
 
     public SimulationEngine() {
@@ -58,25 +65,22 @@ public class SimulationEngine {
     }
 
     public void startSimulation() {
+        // Inicia el control de semáforos y demás, si lo requieres
         trafficController.startControl();
 
-        // Vehicle visualization updater
-        vehicleUpdater = Executors.newSingleThreadScheduledExecutor();
-        vehicleUpdater.scheduleAtFixedRate(() -> Platform.runLater(() -> {
-            // This is where you'd trigger the UI to redraw vehicles
+        // Crea una animación que actualiza la posición de los vehículos
+        animation = new Timeline(new KeyFrame(Duration.millis(SimulationConfig.VEHICLE_UPDATE_INTERVAL_MS), event -> {
+            moveVehicles();   // método que actualiza la posición de cada vehículo
             if (uiUpdateCallback != null) {
                 uiUpdateCallback.accept(null);
             }
-        }), 0, SimulationConfig.VEHICLE_UPDATE_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        }));
+        animation.setCycleCount(Timeline.INDEFINITE);
+        animation.play();
     }
 
     public void stopSimulation() {
-        if (scheduler != null && !scheduler.isShutdown()) {
-            scheduler.shutdownNow();
-        }
-        if (vehicleUpdater != null && !vehicleUpdater.isShutdown()) {
-            vehicleUpdater.shutdownNow();
-        }
+        if (animation != null) animation.stop();
         if (trafficController != null) {
             trafficController.stopControl();
         }
@@ -111,5 +115,102 @@ public class SimulationEngine {
                 }
             }
         });
+    }
+    public void addVehicle(String type, String direction, String intersectionId) {
+        Platform.runLater(() -> {
+            //  Crear vehículo
+            String id = "V" + System.currentTimeMillis();
+            Vehicle v = new Vehicle(id, type, direction, false);
+
+            //  Buscar la intersección y, al encontrarla, calcular posición y encolar
+            intersections.stream()
+                .filter(i -> i.getId().equalsIgnoreCase(intersectionId))
+                .findFirst()
+                .ifPresent(i -> {
+                    // calcularposición de origen ---
+                    double centerX   = SimulationConfig.SCENE_WIDTH  / 2.0;
+                    double centerY   = SimulationConfig.SCENE_HEIGHT / 2.0;
+                    double laneWidth = SimulationConfig.ROAD_WIDTH   / 2.0;
+                    int queueIndex   = i.getVehicleQueue().size();
+                    double[] pos = SimulationPane.getVehiclePosition(
+                        i.getId(), centerX, centerY, laneWidth, queueIndex);
+
+                    // Fijar la posición lógica antes de encolar
+                    v.setPosition(new Point2D(pos[0], pos[1]));
+
+                    // Ahora sí encolar en la intersección
+                    i.addVehicle(v);
+                });
+
+            //  Forzar refresco de UI
+            if (uiUpdateCallback != null) 
+                uiUpdateCallback.accept(null);
+        });
+}
+
+
+    private void moveVehicles() {
+        // Definir una velocidad en píxeles; ajusta este valor según convenga
+        double speed = 5.0;
+        // Para cada intersección y cada vehículo, calcula el vector de movimiento
+        for (Intersection intersection : intersections) {
+            for (Vehicle v : intersection.getVehicleQueue()) {  
+                Point2D currentPos = v.getPosition();
+                Point2D delta = Point2D.ZERO;
+                
+                switch (intersection.getId().toLowerCase()) {
+                    case "north":
+                        if ("straight".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, speed);
+                        } else if ("right".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(speed, 0);
+                        } else if ("left".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(-speed, 0);
+                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, -speed);
+                        }
+                        break;
+                    case "south":
+                        if ("straight".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, -speed);
+                        } else if ("right".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(-speed, 0);
+                        } else if ("left".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(speed, 0);
+                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, speed);
+                        }
+                        break;
+                    case "east":
+                        if ("straight".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(-speed, 0);
+                        } else if ("right".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, speed);
+                        } else if ("left".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, -speed);
+                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(speed, 0);
+                        }
+                        break;
+                    case "west":
+                        if ("straight".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(speed, 0);
+                        } else if ("right".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, -speed);
+                        } else if ("left".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(0, speed);
+                        } else if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                            delta = new Point2D(-speed, 0);
+                        }
+                        break;
+                    default:
+                        delta = new Point2D(speed, 0);
+                        break;
+                }
+                
+                Point2D newPos = currentPos.add(delta);
+                v.setPosition(newPos);
+            }
+        }
     }
 }

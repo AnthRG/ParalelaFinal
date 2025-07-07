@@ -31,8 +31,8 @@ public class TrafficController {
     }
 
     public void startControl() {
-        scheduler.scheduleAtFixedRate(this::manageIntersections, 0, 2, TimeUnit.SECONDS);
-        vehicleGeneratorScheduler.scheduleAtFixedRate(this::generateRandomVehicle, 0, 1, TimeUnit.SECONDS);
+      scheduler.scheduleAtFixedRate(this::manageIntersections, 0, 2, TimeUnit.SECONDS);
+     // vehicleGeneratorScheduler.scheduleAtFixedRate(this::generateRandomVehicle, 0, 1, TimeUnit.SECONDS);
     }
 
     private void manageIntersections() {

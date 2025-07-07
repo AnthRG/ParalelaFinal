@@ -14,11 +14,14 @@ module app.paralelafinal {
     requires eu.hansolo.tilesfx;
     requires com.almasb.fxgl.all;
     requires annotations;
+    requires javafx.graphics;
 
     opens app.paralelafinal to javafx.fxml;
     exports app.paralelafinal;
     exports app.paralelafinal.entidades;
+     exports app.paralelafinal.simulation;
     opens app.paralelafinal.entidades to javafx.fxml;
     exports app.paralelafinal.controladores;
     opens app.paralelafinal.controladores to javafx.fxml;
+
 }

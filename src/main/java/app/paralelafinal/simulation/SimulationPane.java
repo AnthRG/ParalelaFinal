@@ -7,12 +7,15 @@ import app.paralelafinal.entidades.TrafficLight;
 import app.paralelafinal.entidades.Vehicle;
 
 import javafx.geometry.Insets;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -23,12 +26,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
 
+
+
+
 public class SimulationPane {
 
     private static BorderPane root;
     private static Pane simulationCanvas;
     private static SimulationEngine simulationEngine;
     private static SimulationPane simulationPane;
+    private Map<Vehicle, Circle> vehicleNodes = new HashMap<>();
     // Map to link backend TrafficLight objects to their JavaFX visual representations
     private Map<String, TrafficLightVisuals> trafficLightVisualsMap;
 
@@ -47,6 +54,16 @@ public class SimulationPane {
             }
         });
     }
+    private void onVehicleAdded(Vehicle v) {
+    // crea el círculo (o imagen) en su posición inicial
+    Circle c = new Circle(8);
+    c.setCenterX(v.getPosition().getX());
+    c.setCenterY(v.getPosition().getY());
+    // opcional: color según tipo
+    c.setFill(v.getType().equals("emergency") ? Color.RED : Color.BLUE);
+    vehicleNodes.put(v, c);
+    root.getChildren().add(c);
+}
 
     public static SimulationEngine getSimulationEngine() {
         return simulationEngine;
@@ -71,13 +88,51 @@ public class SimulationPane {
 
         root.setCenter(simulationCanvas);
 
-        Button addVehicleButton = new Button("Add Vehicle");
-        addVehicleButton.setOnAction(e -> simulationEngine.trafficController.generateRandomVehicle());
+        // --- Botón para agregar vehículo aleatorio ---
+       // Button addVehicleButton = new Button("Add Vehicle");
+       // addVehicleButton.setOnAction(e -> simulationEngine.trafficController.generateRandomVehicle());
+       // HBox randomBox = new HBox(10, addVehicleButton);
+        //randomBox.setAlignment(Pos.CENTER);
+        //randomBox.setPadding(new Insets(10));
 
-        HBox buttonBox = new HBox(10, addVehicleButton); // 10px spacing
-        buttonBox.setAlignment(Pos.CENTER);
-        buttonBox.setPadding(new Insets(10));
-        root.setBottom(buttonBox);
+        // — Controles de generación manual — 
+        Label originLabel = new Label("Intersección:");
+        ComboBox<String> originCombo = new ComboBox<>();
+        originCombo.getItems().addAll("North", "South", "East", "West");
+        originCombo.setValue("North");
+
+        Label typeLabel = new Label("Tipo:");
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll("normal", "emergency");
+        typeCombo.setValue("normal");
+
+        Label dirLabel = new Label("Giro:");
+        ComboBox<String> dirCombo = new ComboBox<>();
+        dirCombo.getItems().addAll("right", "straight", "left", "u-turn");
+        dirCombo.setValue("straight");
+
+        // --- Botón para agregar vehículo manual ---
+        Button addManualBtn = new Button("Agregar Vehículo");
+        addManualBtn.setOnAction(e -> {
+            String origin = originCombo.getValue();
+            String type   = typeCombo.getValue();
+            String dir    = dirCombo.getValue();
+            simulationEngine.addVehicle(type, dir, origin);
+        });
+        HBox manualControls = new HBox(10,
+            originLabel, originCombo,
+            typeLabel,   typeCombo,
+            dirLabel,    dirCombo,
+            addManualBtn
+        );
+        manualControls.setAlignment(Pos.CENTER);
+        manualControls.setPadding(new Insets(10));
+
+        // Empaqueta ambos en un VBox:
+        VBox controlsBox = new VBox(5, manualControls);
+        controlsBox.setAlignment(Pos.CENTER);
+        controlsBox.setPadding(new Insets(5));
+        root.setBottom(controlsBox);
 
         // Initial update to draw everything based on the simulation engine's initial state
         updateAllVisuals();
@@ -254,25 +309,34 @@ public class SimulationPane {
     }
 
     private static void drawVehicles() throws InterruptedException {
-        simulationCanvas.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("vehicle"));
+        // Elimina todos los viejos sprites de vehículos
+        simulationCanvas.getChildren().removeIf(node ->
+            "vehicle".equals(node.getUserData())
+        );
 
-        double centerX = SimulationConfig.SCENE_WIDTH / 2;
-        double centerY = SimulationConfig.SCENE_HEIGHT / 2;
-        double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
+        double centerX   = SimulationConfig.SCENE_WIDTH  / 2.0;
+        double centerY   = SimulationConfig.SCENE_HEIGHT / 2.0;
+        double laneWidth = SimulationConfig.ROAD_WIDTH   / 2.0;
 
+        // Por cada intersección y por cada vehículo en su cola...
         for (Intersection intersection : simulationEngine.getIntersections()) {
             PriorityBlockingQueue<Vehicle> queue = intersection.getVehicleQueue();
-            for (int i = 0; i < queue.size(); i++) {
-                Vehicle v = queue.peek();
-                Group vehicle = createVehicleShape(v);
-                double[] pos = getVehiclePosition(intersection.getId(), centerX, centerY, laneWidth, i);
+            for (Vehicle v : queue) {
+                // Crea el sprite y márcalo como "vehicle"
+                Group sprite = createVehicleShape(v);
+                sprite.setUserData("vehicle");
+
+                // Rótalo según venga de North/South/East/West
                 double angle = getVehicleRotation(intersection.getId());
+                sprite.setRotate(angle);
 
-                vehicle.setLayoutX(pos[0]);
-                vehicle.setLayoutY(pos[1]);
-                vehicle.setRotate(angle);
+                // Colócalo en su posición lógica (previo cálculo en addVehicle)
+                Point2D pos = v.getPosition();
+                sprite.setLayoutX(pos.getX());
+                sprite.setLayoutY(pos.getY());
 
-                simulationCanvas.getChildren().add(vehicle);
+                // Agrégalo al canvas
+                simulationCanvas.getChildren().add(sprite);
             }
         }
     }
@@ -333,7 +397,7 @@ public class SimulationPane {
         return vehicleGroup;
     }
 
-    private static double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, int index) {
+    public static double[] getVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth, int index) {
         double x = 0, y = 0;
         double spacing = SimulationConfig.VEHICLE_SPACING; // Use spacing from config
 
@@ -359,15 +423,16 @@ public class SimulationPane {
         return new double[]{x, y};
     }
 
-    private static double getVehicleRotation(String intersectionId) {
-        switch (intersectionId) {
-            case "North": return 90;
+   private static double getVehicleRotation(String intersectionId) {
+        switch(intersectionId) {
+            case "North": return  90;
             case "South": return 270;
-            case "East":  return 0;
-            case "West":  return 0;
-            default: return 0;
+            case "East":  return   0;
+            case "West":  return 180;  
+            default:      return   0;
         }
-    }
+}
+
 
     private double[] getFinishedVehiclePosition(String intersectionId, double centerX, double centerY, double laneWidth) {
         double x = 0, y = 0;
