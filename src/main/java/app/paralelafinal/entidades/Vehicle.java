@@ -9,6 +9,7 @@ public class Vehicle {
     private String direction; // "right", "straight", "left", "u-turn"
     private boolean inIntersection;
     private long arrivalTime;
+    private boolean crossingStarted = false;
     
     // Nuevo campo para la posición
     private Point2D position;
@@ -68,4 +69,11 @@ public class Vehicle {
     public void setPosition(Point2D position) {
         this.position = position;
     }
+        public boolean isCrossingStarted() {
+        return crossingStarted;
+    }
+    public void setCrossingStarted(boolean v) {
+        this.crossingStarted = v;
+    }
+
 }
