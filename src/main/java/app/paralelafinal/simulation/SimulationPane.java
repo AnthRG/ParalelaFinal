@@ -111,18 +111,14 @@ public class SimulationPane {
         dirCombo.setValue("straight");
 
         // --- Botón para agregar vehículo manual ---
-        Button addManualBtn = new Button("Agregar Vehículo");
-        addManualBtn.setOnAction(e -> {
-            String origin = originCombo.getValue();
-            String type   = typeCombo.getValue();
-            String dir    = dirCombo.getValue();
-            simulationEngine.addVehicle(type, dir, origin);
-        });
+        Button addVehicleButton = new Button("Add Vehicle");
+        addVehicleButton.setOnAction(e -> VehicleAddMenu.display(simulationEngine));
+
         HBox manualControls = new HBox(10,
             originLabel, originCombo,
             typeLabel,   typeCombo,
             dirLabel,    dirCombo,
-            addManualBtn
+                addVehicleButton
         );
         manualControls.setAlignment(Pos.CENTER);
         manualControls.setPadding(new Insets(10));

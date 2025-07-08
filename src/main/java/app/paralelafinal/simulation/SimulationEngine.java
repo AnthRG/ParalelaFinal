@@ -94,8 +94,8 @@ public class SimulationEngine {
      * It ensures the operation is run on the JavaFX Application Thread for UI safety.
      *
      * @param type The type of vehicle ("normal", "emergency").
-     * @param direction The intended maneuver ("straight", "left", "right").
-     * @param intersectionId The ID of the intersection where the vehicle should start.
+     * @param direction The intended maneuver ("straight", "left", "right", "u-turn").
+     * @param intersectionId The ID of the intersection where the vehicle should start. ("North", "South", "East", "West").
      */
     public void addVehicle(String type, String direction, String intersectionId) {
         Platform.runLater(() -> {
@@ -217,7 +217,7 @@ public class SimulationEngine {
         String origin = intersection.getId().toLowerCase();
         String maneuver = vehicle.getDirection().toLowerCase();
         Point2D position = vehicle.getPosition();
-        boolean hasPassedCenter = hasVehiclePassedCenter(origin, position, center);
+        boolean hasPassedCenter = hasVehiclePassedCenter(origin, position, center, maneuver);
 
         // If the vehicle has passed the center, it may need to turn.
         if (hasPassedCenter) {
@@ -241,13 +241,14 @@ public class SimulationEngine {
     private Point2D handleUTurnMovement(Intersection intersection, Vehicle vehicle, Point2D center) {
         String origin = intersection.getId().toLowerCase();
         Point2D position = vehicle.getPosition();
+        String manuver = vehicle.getDirection().toLowerCase();
 
         switch (vehicle.getUTurnPhase()) {
             // --- PHASE 0: APPROACH THE CENTER ---
             case 0:
                 Point2D approachVector = getPreCenterMovement(origin);
 
-                if (hasVehiclePassedCenter(origin, position, center)) {
+                if (hasVehiclePassedCenter(origin, position, center, manuver)) {
                     vehicle.setUTurnPhase(1);
                 }
                 return approachVector;
@@ -299,19 +300,37 @@ public class SimulationEngine {
     /**
      * Determines if a vehicle has crossed the central point of the intersection.
      */
-    private boolean hasVehiclePassedCenter(String origin, Point2D position, Point2D center) {
-        double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
-        double turnFactor = 0.5;
-        double turnDistance = laneWidth * turnFactor;
+    private boolean hasVehiclePassedCenter(String origin, Point2D position, Point2D center, String maneuver) {
+        if("left".equalsIgnoreCase(maneuver)){
+            return switch (origin) {
+                case "north" -> position.getY() >= center.getY() + 30;
+                case "south" -> position.getY() <= center.getY() - 50;
+                case "east" -> position.getX() <= center.getX() - 60;
+                case "west" -> position.getX() >= center.getX() + 30;
+                default -> false;
+            };
 
-        return switch (origin) {
-            case "north" -> position.getY() >= center.getY() + turnDistance;
-            case "south" -> position.getY() <= center.getY() - turnDistance;
-            case "east" -> position.getX() <= center.getX() - turnDistance;
-            case "west" -> position.getX() >= center.getX() + turnDistance;
-            default -> false;
-        };
+        } else if ("right".equalsIgnoreCase(maneuver)) {
+            return switch (origin) {
+                case "north" -> position.getY() >= center.getY() - 50;
+                case "south" -> position.getY() <= center.getY() + 35;
+                case "east" -> position.getX() <= center.getX() + 30;
+                case "west" -> position.getX() >= center.getX() - 65;
+                default -> false;
+            };
+        } else{
+            return switch (origin) {
+                case "north" -> position.getY() >= center.getY() ;
+                case "south" -> position.getY() <= center.getY() ;
+                case "east" -> position.getX() <= center.getX();
+                case "west" -> position.getX() >= center.getX();
+                default -> false;
+            };
+
+        }
+
     }
+
 
     /**
      * Gets the movement vector for a vehicle approaching the center.

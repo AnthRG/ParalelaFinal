@@ -34,7 +34,7 @@ public class TrafficController {
      * Inicia la lógica de control de tráfico, programándola para que se ejecute a intervalos fijos.
      */
     public void startControl() {
-        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 7, 4, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 3, 4, TimeUnit.SECONDS);
     }
 
     /**

@@ -26,30 +26,19 @@ public class CrossroadsApp extends Application {
      */
     @Override
     public void start(Stage primaryStage) throws InterruptedException {
-        // 1. Initialize the simulation logic engine first.
         simulationEngine = new SimulationEngine();
-
-        // 2. Initialize the main UI component, passing the engine to it.
-        //    The SimulationPane is the root of our scene.
         SimulationPane simulationPane = new SimulationPane(simulationEngine);
-
-        // 3. Create the main scene with the desired dimensions.
         Scene scene = new Scene(simulationPane.getRoot(), SimulationConfig.SCENE_WIDTH, SimulationConfig.SCENE_HEIGHT);
 
-        // 4. Configure and show the primary stage (the application window).
         primaryStage.setTitle("Crossroads Traffic Simulation");
         primaryStage.setScene(scene);
-        primaryStage.setResizable(false); // Optional: lock window size
+        primaryStage.setResizable(false);
         primaryStage.show();
 
-        // 5. Start the simulation logic (traffic light cycles, vehicle movement).
         simulationEngine.startSimulation();
 
-        // 6. Ensure the simulation's background threads are stopped when the window is closed.
         primaryStage.setOnCloseRequest(event -> {
             simulationEngine.stopSimulation();
-            // Platform.exit(); // Not strictly necessary but good practice
-            // System.exit(0);
         });
     }
 
