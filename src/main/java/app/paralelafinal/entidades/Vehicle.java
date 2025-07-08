@@ -9,6 +9,7 @@ public class Vehicle {
     private String direction; // "right", "straight", "left", "u-turn"
     private boolean inIntersection;
     private long arrivalTime;
+    private int uTurnPhase = 0; // 0: approaching, 1: turning, 2: exiting
 
     // Nuevo campo para la posición
     private Point2D position;
@@ -89,4 +90,16 @@ public class Vehicle {
         }
     }
 
+    public int getUTurnPhase() {
+        return uTurnPhase;
+    }
+
+    public void setUTurnPhase(int uTurnPhase) {
+        this.uTurnPhase = uTurnPhase;
+    }
+
+
+    public boolean isEmergency() {
+        return this.type.equalsIgnoreCase("emergency");
+    }
 }

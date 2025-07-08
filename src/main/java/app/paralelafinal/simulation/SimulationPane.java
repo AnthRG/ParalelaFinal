@@ -183,30 +183,6 @@ public class SimulationPane {
         markingsPane.getChildren().stream()
                 .filter(node -> node instanceof Rectangle)
                 .forEach(node -> ((Rectangle) node).setFill(Color.YELLOW));
-
-/*        // --- WHITE DASHED LANE LINES ---
-        double laneCenterY1 = centerY - SimulationConfig.ROAD_WIDTH / 4;
-        double laneCenterY2 = centerY + SimulationConfig.ROAD_WIDTH / 4;
-        for (double x = 0; x < SimulationConfig.SCENE_WIDTH; x += SimulationConfig.DASHED_LINE_LENGTH + SimulationConfig.DASHED_LINE_GAP) {
-            if (x + SimulationConfig.DASHED_LINE_LENGTH < centerX - SimulationConfig.ROAD_WIDTH / 2 || x > centerX + SimulationConfig.ROAD_WIDTH / 2) {
-                Rectangle dash1 = new Rectangle(x, laneCenterY1 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.DASHED_LINE_LENGTH, SimulationConfig.LINE_THICKNESS);
-                Rectangle dash2 = new Rectangle(x, laneCenterY2 - SimulationConfig.LINE_THICKNESS / 2, SimulationConfig.DASHED_LINE_LENGTH, SimulationConfig.LINE_THICKNESS);
-                dash1.setFill(Color.WHITE);
-                dash2.setFill(Color.WHITE);
-                markingsPane.getChildren().addAll(dash1, dash2);
-            }
-        }
-        double laneCenterX1 = centerX - SimulationConfig.ROAD_WIDTH / 4;
-        double laneCenterX2 = centerX + SimulationConfig.ROAD_WIDTH / 4;
-        for (double y = 0; y < SimulationConfig.SCENE_HEIGHT; y += SimulationConfig.DASHED_LINE_LENGTH + SimulationConfig.DASHED_LINE_GAP) {
-            if (y + SimulationConfig.DASHED_LINE_LENGTH < centerY - SimulationConfig.ROAD_WIDTH / 2 || y > centerY + SimulationConfig.ROAD_WIDTH / 2) {
-                Rectangle dash1 = new Rectangle(laneCenterX1 - SimulationConfig.LINE_THICKNESS / 2, y, SimulationConfig.LINE_THICKNESS, SimulationConfig.DASHED_LINE_LENGTH);
-                Rectangle dash2 = new Rectangle(laneCenterX2 - SimulationConfig.LINE_THICKNESS / 2, y, SimulationConfig.LINE_THICKNESS, SimulationConfig.DASHED_LINE_LENGTH);
-                dash1.setFill(Color.WHITE);
-                dash2.setFill(Color.WHITE);
-                markingsPane.getChildren().addAll(dash1, dash2);
-            }
-        }*/
         pane.getChildren().removeIf(node -> node.getUserData() != null && node.getUserData().equals("markingsPane"));
         markingsPane.setUserData("markingsPane");
         pane.getChildren().add(markingsPane);

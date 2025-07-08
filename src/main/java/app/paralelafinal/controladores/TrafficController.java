@@ -7,12 +7,14 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
  * Gestiona el flujo de tráfico para un conjunto de intersecciones controlando los semáforos.
  * La lógica sigue un estricto sistema de prioridades:
  * 1. Vehículos de emergencia: Se le da luz verde al carril completo hasta que el vehículo de emergencia pase.
+ * Si hay múltiples vehículos de emergencia, se prioriza el que ha esperado más tiempo.
  * 2. Primer llegado, primer servido (FIFO): En condiciones normales, el vehículo que ha esperado más tiempo
  * en todo el sistema tiene prioridad para pasar.
  * Solo un carril puede tener luz verde a la vez para evitar colisiones.
@@ -21,6 +23,7 @@ public class TrafficController {
 
     private final List<Intersection> intersections;
     private final ScheduledExecutorService scheduler;
+    private final ReentrantLock controlLock = new ReentrantLock(); // <-- AÑADIR ESTO
 
     public TrafficController(List<Intersection> intersections) {
         this.intersections = intersections;
@@ -31,8 +34,7 @@ public class TrafficController {
      * Inicia la lógica de control de tráfico, programándola para que se ejecute a intervalos fijos.
      */
     public void startControl() {
-        // La lógica principal se ejecuta cada 2 segundos.
-        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 0, 2, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 0, 1, TimeUnit.SECONDS);
     }
 
     /**
@@ -41,7 +43,7 @@ public class TrafficController {
     public void stopControl() {
         scheduler.shutdown();
         try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+            if (!scheduler.awaitTermination(50, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
         } catch (InterruptedException e) {
@@ -55,19 +57,19 @@ public class TrafficController {
      * Decide qué carril obtiene la luz verde basándose en un sistema de prioridades.
      */
     private void manageTrafficFlow() {
-        // 1. Poner todas las luces en rojo como estado seguro por defecto.
-        setAllLights(false);
+        if (controlLock.tryLock()) {
+            try {
+                setAllLights(false);
+                Optional<Intersection> emergencyLane = prioritizeEmergencyLane();
 
-        // 2. Buscar si existe un vehículo de emergencia en CUALQUIER carril.
-        Optional<Intersection> laneWithEmergencyVehicle = findLaneWithEmergencyVehicle();
-
-        if (laneWithEmergencyVehicle.isPresent()) {
-            // Si hay un vehículo de emergencia, ese carril tiene la máxima prioridad.
-            // Se le da luz verde para que todos los vehículos delante de él puedan avanzar.
-            laneWithEmergencyVehicle.get().setGreenLight(true);
-        } else {
-            // 3. Si no hay emergencias, gestionar el tráfico normal según FIFO.
-            handleNormalTrafficFlow();
+                if (emergencyLane.isPresent()) {
+                    emergencyLane.get().setGreenLight(true);
+                } else {
+                    handleNormalTrafficFlow();
+                }
+            } finally {
+                controlLock.unlock();
+            }
         }
     }
 
@@ -76,23 +78,23 @@ public class TrafficController {
      * Da luz verde al vehículo que ha estado esperando más tiempo en todas las intersecciones.
      */
     private void handleNormalTrafficFlow() {
-        // Encuentra el vehículo más antiguo en todas las colas.
-        findOldestVehicleInSystem().ifPresent(oldestVehicle -> {
-            // Encuentra la intersección de ese vehículo y le da luz verde.
-            findIntersectionForVehicle(oldestVehicle).ifPresent(intersection -> intersection.setGreenLight(true));
-        });
+        findOldestVehicleInSystem().flatMap(this::findIntersectionForVehicle).ifPresent(intersection -> intersection.setGreenLight(true));
     }
 
     /**
-     * Busca en todas las intersecciones para encontrar un carril que contenga un vehículo de emergencia.
-     * A diferencia de la lógica anterior, esta revisa la cola completa, no solo el primer vehículo.
+     * (NUEVO) Busca en todas las intersecciones para encontrar el vehículo de emergencia con mayor tiempo de espera.
+     * Esto resuelve el conflicto cuando hay múltiples vehículos de emergencia en el sistema a la vez.
      *
-     * @return Un Optional que contiene la intersección si se encuentra un vehículo de emergencia.
+     * @return Un Optional que contiene la intersección del vehículo de emergencia con mayor prioridad.
      */
-    private Optional<Intersection> findLaneWithEmergencyVehicle() {
-        return intersections.stream()
-                .filter(Intersection::hasEmergencyVehicleInQueue) // Asume que Intersection tiene este método
-                .findFirst();
+    private Optional<Intersection> prioritizeEmergencyLane() {
+        // Encuentra el vehículo de emergencia más antiguo en todo el sistema.
+        Optional<Vehicle> oldestEmergencyVehicle = getAllWaitingVehicles()
+                .filter(Vehicle::isEmergency) // Asume que Vehicle tiene el método isEmergency()
+                .min(Comparator.comparingLong(Vehicle::getArrivalTime));
+
+        // Si se encontró, busca la intersección a la que pertenece.
+        return oldestEmergencyVehicle.flatMap(this::findIntersectionForVehicle);
     }
 
     /**
@@ -101,7 +103,7 @@ public class TrafficController {
      */
     private Stream<Vehicle> getAllWaitingVehicles() {
         return intersections.stream()
-                .flatMap(intersection -> intersection.getVehicleQueue().stream()); // Asume que Intersection tiene este método
+                .flatMap(intersection -> intersection.getVehicleQueue().stream()); // Asume que Intersection tiene getVehicleQueue()
     }
 
     /**
@@ -110,6 +112,7 @@ public class TrafficController {
      */
     private Optional<Vehicle> findOldestVehicleInSystem() {
         return getAllWaitingVehicles()
+                .filter(v -> !v.isEmergency()) // Asegurarse de no contar vehículos de emergencia en el flujo normal
                 .min(Comparator.comparingLong(Vehicle::getArrivalTime));
     }
 

@@ -31,4 +31,9 @@ public class SimulationConfig {
     // --- STOP SIGN OFFSET ---
     public static final double STOP_SIGN_OFFSET = 0;
     public static final double LANE_WIDTH = ROAD_WIDTH / 2;
+
+    public static final double VEHICLE_SPEED = 60.0;
+    public static final double VEHICLE_SPEED_ES = 50.0;
+    public static final double SAFE_FOLLOWING_GAP = 5.0;
+
 }
