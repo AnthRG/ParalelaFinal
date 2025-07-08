@@ -126,7 +126,7 @@ public class SimulationEngine {
     private void updateVehiclePositions() {
         final Point2D center = new Point2D(SimulationConfig.SCENE_WIDTH / 2.0, SimulationConfig.SCENE_HEIGHT / 2.0);
         final double stopLineDistance = (SimulationConfig.ROAD_WIDTH / 2.0) + (SimulationConfig.VEHICLE_LENGTH / 2.0);
-        final double removalThreshold = stopLineDistance + SimulationConfig.VEHICLE_LENGTH + 50;
+        final double removalThreshold = SCENE_WIDTH / 2 ;
 
         for (Intersection intersection : intersections) {
             processVehiclesForIntersection(intersection, center, stopLineDistance, removalThreshold);

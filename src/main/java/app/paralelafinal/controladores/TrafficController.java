@@ -15,7 +15,7 @@ import java.util.stream.Stream;
  * La lógica sigue un estricto sistema de prioridades:
  * 1. Vehículos de emergencia: Se le da luz verde al carril completo hasta que el vehículo de emergencia pase.
  * Si hay múltiples vehículos de emergencia, se prioriza el que ha esperado más tiempo.
- * 2. Primer llegado, primer servido (FIFO): En condiciones normales, el vehículo que ha esperado más tiempo
+ * 2. Primer llegado, primer servido: En condiciones normales, el vehículo que ha esperado más tiempo
  * en todo el sistema tiene prioridad para pasar.
  * Solo un carril puede tener luz verde a la vez para evitar colisiones.
  */
@@ -34,7 +34,7 @@ public class TrafficController {
      * Inicia la lógica de control de tráfico, programándola para que se ejecute a intervalos fijos.
      */
     public void startControl() {
-        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 3, 2, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 7, 4, TimeUnit.SECONDS);
     }
 
     /**
@@ -112,7 +112,7 @@ public class TrafficController {
      */
     private Optional<Vehicle> findOldestVehicleInSystem() {
         return getAllWaitingVehicles()
-                .filter(v -> !v.isEmergency()) // Asegurarse de no contar vehículos de emergencia en el flujo normal
+                .filter(v -> !v.isEmergency())
                 .min(Comparator.comparingLong(Vehicle::getArrivalTime));
     }
 
