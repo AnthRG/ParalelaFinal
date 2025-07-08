@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 import static app.paralelafinal.config.SimulationConfig.*;
 import static app.paralelafinal.simulation.SimulationPane.getVehiclePosition;
-/
+
 public class SimulationEngine {
 
     // --- Simulation State ---
