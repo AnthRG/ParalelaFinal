@@ -1,209 +1,134 @@
 package app.paralelafinal.controladores;
 
 import app.paralelafinal.entidades.Intersection;
-import app.paralelafinal.entidades.TrafficLight;
 import app.paralelafinal.entidades.Vehicle;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+/**
+ * Gestiona el flujo de tráfico para un conjunto de intersecciones controlando los semáforos.
+ * La lógica sigue un estricto sistema de prioridades:
+ * 1. Vehículos de emergencia: Se le da luz verde al carril completo hasta que el vehículo de emergencia pase.
+ * 2. Primer llegado, primer servido (FIFO): En condiciones normales, el vehículo que ha esperado más tiempo
+ * en todo el sistema tiene prioridad para pasar.
+ * Solo un carril puede tener luz verde a la vez para evitar colisiones.
+ */
 public class TrafficController {
-    private List<Intersection> intersections;
-    private List<TrafficLight> trafficLights;
-    private ScheduledExecutorService scheduler;
-    private ScheduledExecutorService vehicleGeneratorScheduler;
-    private Random random = new Random();
 
-    // Directions that can safely pass together
-    private static final Map<String, Set<String>> COMPATIBLE_DIRECTIONS = Map.of(
-            "right", Set.of("straight", "left"),
-            "straight", Set.of("right", "u-turn"),
-            "left", Set.of("right"),
-            "u-turn", Set.of("straight")
-    );
+    private final List<Intersection> intersections;
+    private final ScheduledExecutorService scheduler;
 
-    public TrafficController(List<Intersection> intersections, List<TrafficLight> trafficLights) {
+    public TrafficController(List<Intersection> intersections) {
         this.intersections = intersections;
-        this.trafficLights = trafficLights;
-        this.scheduler = Executors.newScheduledThreadPool(10);
-        this.vehicleGeneratorScheduler = Executors.newSingleThreadScheduledExecutor();
-    }
-
-    public void startControl() {
-      scheduler.scheduleAtFixedRate(this::manageIntersections, 0, 2, TimeUnit.SECONDS);
-     // vehicleGeneratorScheduler.scheduleAtFixedRate(this::generateRandomVehicle, 0, 1, TimeUnit.SECONDS);
+        this.scheduler = Executors.newScheduledThreadPool(1);
     }
 
     /**
-     * Alterna los semáforos de todas las intersecciones:
-     * 1) Si hay emergencia en alguna vía, solo esa vía (y su vía no conflictiva) se pone en verde.
-     * 2) Si no hay emergencia, se buscan vehículos compatibles para pasar juntos.
-     * 3) Si no hay compatibles, el vehículo más antiguo (FIFO) pasa solo.
+     * Inicia la lógica de control de tráfico, programándola para que se ejecute a intervalos fijos.
      */
-    private void manageIntersections() {
-        // 1) ¿Hay algún vehículo de emergencia en alguna intersección?
-        Optional<Intersection> emergInt = intersections.stream()
-            .filter(i ->
-                i.getVehicleQueue().stream()
-                 .anyMatch(v -> "emergency".equalsIgnoreCase(v.getType()))
-            )
-            .findFirst();
-
-        if (emergInt.isPresent()) {
-            // – Apaga TODOS los semáforos
-            intersections.forEach(i -> i.setGreenLight(false));
-
-            // – Enciende solo la intersección de emergencia
-            Intersection ei = emergInt.get();
-            ei.setGreenLight(true);
-
-            // – También habilita la vía cruzada que no choque
-            switch (ei.getId().toLowerCase()) {
-                case "north": intersections.get(1).setGreenLight(true); break; // South
-                case "south": intersections.get(0).setGreenLight(true); break; // North
-                case "east":  intersections.get(3).setGreenLight(true); break; // West
-                case "west":  intersections.get(2).setGreenLight(true); break; // East
-            }
-            return;
-        }
-
-        // 2) No hay emergencia: lógica normal
-        // (Opcional: resetear semáforos antes de asignar nuevos verdes)
-        intersections.forEach(i -> i.setGreenLight(false));
-
-        // 2.a) Obtener el vehículo al frente de cada cola
-        List<Vehicle> frontVehicles = getAllFrontVehicles();
-
-        // 2.b) Intenta agrupar compatibles
-        List<Vehicle> compatibleGroup = findCompatibleVehicles(frontVehicles);
-        if (!compatibleGroup.isEmpty()) {
-            // Deja pasar todos los compatibles juntos
-            for (Vehicle v : compatibleGroup) {
-                try {
-                    processCompatibleVehi(v);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            return;
-        }
-
-        // 2.c) Si no hay compatibles, deja pasar el más antiguo (FIFO)
-        frontVehicles.stream()
-            .filter(Objects::nonNull)
-            .min(Comparator.comparingLong(Vehicle::getArrivalTime))
-            .ifPresent(v -> {
-                try {
-                    processVehicle(v);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+    public void startControl() {
+        // La lógica principal se ejecuta cada 2 segundos.
+        scheduler.scheduleAtFixedRate(this::manageTrafficFlow, 0, 2, TimeUnit.SECONDS);
     }
 
-    private void processCompatibleVehi(Vehicle vehicle) throws InterruptedException {
-        for (Intersection inter : intersections) {
-            if (inter.peekNextVehicle() != null
-              && inter.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
-                // Enciende verde
-                inter.setGreenLight(true);
-                // Apaga verde tras el ciclo (2s en este ejemplo)
-              //  scheduler.schedule(() -> inter.setGreenLight(false), 2, TimeUnit.SECONDS);
-
-                // Lógica de intersecciones cruzadas
-                switch (inter.getId()) {
-                    case "North" -> intersections.get(1).setGreenLight(true);
-                    case "South" -> intersections.get(0).setGreenLight(true);
-                    case "East"  -> intersections.get(3).setGreenLight(true);
-                    case "West"  -> intersections.get(2).setGreenLight(true);
-                }
-                break;
-            }
-        }
-    }
-
-    private void processVehicle(@NotNull Vehicle vehicle) throws InterruptedException {
-        for (Intersection inter : intersections) {
-            if (inter.peekNextVehicle() != null
-             && inter.peekNextVehicle().getId().equalsIgnoreCase(vehicle.getId())) {
-                // Enciende verde para que avance
-                inter.setGreenLight(true);
-                // Apaga verde tras el ciclo
-               // scheduler.schedule(() -> inter.setGreenLight(false), 2, TimeUnit.SECONDS);
-                break;
-            }
-        }
-    }
-
-    private List<Vehicle> getAllFrontVehicles() {
-        List<Vehicle> frontVehicles = new ArrayList<>();
-        for (Intersection intersection : intersections) {
-            frontVehicles.add(intersection.peekNextVehicle());
-        }
-        return frontVehicles;
-    }
-
-    private List<Vehicle> findCompatibleVehicles(List<Vehicle> vehicles) {
-        List<Vehicle> compatibleVehicles = new ArrayList<>();
-        List<Vehicle> candidates = vehicles.stream()
-                .filter(Objects::nonNull)
-                .filter(v -> !"emergency".equals(v.getType()))
-                .sorted(Comparator.comparingLong(Vehicle::getArrivalTime))
-                .toList();
-
-        for (Vehicle v1 : candidates) {
-            if (compatibleVehicles.isEmpty()) {
-                compatibleVehicles.add(v1);
-                continue;
-            }
-
-            boolean canAdd = true;
-            for (Vehicle v2 : compatibleVehicles) {
-                if (!canPassTogether(v1, v2)) {
-                    canAdd = false;
-                    break;
-                }
-            }
-
-            if (canAdd) {
-                compatibleVehicles.add(v1);
-            }
-        }
-
-        return compatibleVehicles;
-    }
-
-    private boolean canPassTogether(Vehicle v1, Vehicle v2) {
-        // Check if directions are compatible
-        return COMPATIBLE_DIRECTIONS.get(v1.getDirection()).contains(v2.getDirection()) ||
-                COMPATIBLE_DIRECTIONS.get(v2.getDirection()).contains(v1.getDirection());
-    }
-
-    public void generateRandomVehicle() {
-        if (intersections.isEmpty()) return;
-
-        String[] types = {"normal", "emergency"};
-        String[] directions = {"right", "straight", "left", "u-turn"};
-
-        String id = UUID.randomUUID().toString();
-        String type = types[random.nextInt(types.length)];
-        String direction = directions[random.nextInt(directions.length)];
-
-        Vehicle vehicle = new Vehicle(id, direction);
-
-        // Select a random intersection
-        Intersection intersection = intersections.get(random.nextInt(intersections.size()));
-        intersection.addVehicle(vehicle);
-    }
-
+    /**
+     * Detiene el planificador de control de tráfico.
+     */
     public void stopControl() {
         scheduler.shutdown();
-        vehicleGeneratorScheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
-    @FunctionalInterface
-    public interface VehicleCrossingListener {
-        void onVehicleCross(Vehicle vehicle, String fromDirection);
+    /**
+     * El método central que orquesta la gestión del tráfico en cada ciclo.
+     * Decide qué carril obtiene la luz verde basándose en un sistema de prioridades.
+     */
+    private void manageTrafficFlow() {
+        // 1. Poner todas las luces en rojo como estado seguro por defecto.
+        setAllLights(false);
+
+        // 2. Buscar si existe un vehículo de emergencia en CUALQUIER carril.
+        Optional<Intersection> laneWithEmergencyVehicle = findLaneWithEmergencyVehicle();
+
+        if (laneWithEmergencyVehicle.isPresent()) {
+            // Si hay un vehículo de emergencia, ese carril tiene la máxima prioridad.
+            // Se le da luz verde para que todos los vehículos delante de él puedan avanzar.
+            laneWithEmergencyVehicle.get().setGreenLight(true);
+        } else {
+            // 3. Si no hay emergencias, gestionar el tráfico normal según FIFO.
+            handleNormalTrafficFlow();
+        }
+    }
+
+    /**
+     * Gestiona el flujo de tráfico en condiciones normales (sin vehículos de emergencia).
+     * Da luz verde al vehículo que ha estado esperando más tiempo en todas las intersecciones.
+     */
+    private void handleNormalTrafficFlow() {
+        // Encuentra el vehículo más antiguo en todas las colas.
+        findOldestVehicleInSystem().ifPresent(oldestVehicle -> {
+            // Encuentra la intersección de ese vehículo y le da luz verde.
+            findIntersectionForVehicle(oldestVehicle).ifPresent(intersection -> intersection.setGreenLight(true));
+        });
+    }
+
+    /**
+     * Busca en todas las intersecciones para encontrar un carril que contenga un vehículo de emergencia.
+     * A diferencia de la lógica anterior, esta revisa la cola completa, no solo el primer vehículo.
+     *
+     * @return Un Optional que contiene la intersección si se encuentra un vehículo de emergencia.
+     */
+    private Optional<Intersection> findLaneWithEmergencyVehicle() {
+        return intersections.stream()
+                .filter(Intersection::hasEmergencyVehicleInQueue) // Asume que Intersection tiene este método
+                .findFirst();
+    }
+
+    /**
+     * Obtiene todos los vehículos que esperan en todas las intersecciones.
+     * @return Un Stream con todos los vehículos.
+     */
+    private Stream<Vehicle> getAllWaitingVehicles() {
+        return intersections.stream()
+                .flatMap(intersection -> intersection.getVehicleQueue().stream()); // Asume que Intersection tiene este método
+    }
+
+    /**
+     * Encuentra el vehículo que llegó primero entre todos los vehículos del sistema.
+     * @return Un Optional que contiene el vehículo con el menor tiempo de llegada.
+     */
+    private Optional<Vehicle> findOldestVehicleInSystem() {
+        return getAllWaitingVehicles()
+                .min(Comparator.comparingLong(Vehicle::getArrivalTime));
+    }
+
+    /**
+     * Encuentra la intersección que contiene un vehículo específico en su cola.
+     * @param vehicle El vehículo a buscar.
+     * @return Un Optional que contiene la Intersección, o vacío si no se encuentra.
+     */
+    private Optional<Intersection> findIntersectionForVehicle(Vehicle vehicle) {
+        return intersections.stream()
+                .filter(i -> i.getVehicleQueue().contains(vehicle)) // Asume que la cola se puede consultar
+                .findFirst();
+    }
+
+    /**
+     * Establece el estado de todos los semáforos a verde o rojo.
+     * @param isGreen True para poner todos los semáforos en verde, false para ponerlos en rojo.
+     */
+    private void setAllLights(boolean isGreen) {
+        intersections.forEach(i -> i.setGreenLight(isGreen));
     }
 }

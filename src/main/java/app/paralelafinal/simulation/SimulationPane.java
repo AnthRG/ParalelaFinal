@@ -149,14 +149,6 @@ public class SimulationPane {
         drawVehicles();
     }
 
-    private void updateTrafficLightVisuals() {
-        for (TrafficLight lightLogic : simulationEngine.getTrafficLights()) {
-            TrafficLightVisuals visuals = trafficLightVisualsMap.get(lightLogic.getId());
-            if (visuals != null) {
-                visuals.updateLight(lightLogic.isGreen());
-            }
-        }
-    }
 
     // --- All your existing drawing methods go here, adapted to use SimulationConfig ---
 
@@ -327,7 +319,7 @@ public class SimulationPane {
                 sprite.setUserData("vehicle");
 
                 //  Obtiene el vector unitario de movimiento
-                Point2D heading = simulationEngine.computeDelta(intersection, v, 1.0, center);
+                Point2D heading = simulationEngine.calculateMovementVector(intersection, v, center);
 
                 //  Convierte ese vector a un ángulo en grados [0,360)
                 double rawAngle = Math.toDegrees(Math.atan2(heading.getY(), heading.getX()));
@@ -410,7 +402,7 @@ public class SimulationPane {
         switch (intersectionId) {
             case "North":
                 x = centerX - laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;
-                y = centerY - SimulationConfig.ROAD_WIDTH / 2 - spacing * (index + 1);
+                y = centerY - SimulationConfig.ROAD_WIDTH  / 2 - spacing * (index + 1);
                 break;
             case "South":
                 x = centerX + laneWidth / 2 - SimulationConfig.VEHICLE_LENGTH / 2;

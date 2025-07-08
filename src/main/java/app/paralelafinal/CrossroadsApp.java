@@ -1,45 +1,64 @@
-// app.paralelafinal.CrossroadsApp
 package app.paralelafinal;
 
 import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.simulation.SimulationEngine;
 import app.paralelafinal.simulation.SimulationPane;
-
 import javafx.application.Application;
-import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+/**
+ * The main entry point for the traffic simulation application.
+ * This class initializes the simulation engine and the user interface,
+ * sets up the main window (Stage), and starts the simulation.
+ */
 public class CrossroadsApp extends Application {
 
     private SimulationEngine simulationEngine;
-    private SimulationPane simulationPane;
 
+    /**
+     * The main entry point for all JavaFX applications.
+     * The start method is called after the init method has returned,
+     * and after the system is ready for the application to begin running.
+     *
+     * @param primaryStage the primary stage for this application, onto which
+     * the application scene can be set.
+     */
     @Override
     public void start(Stage primaryStage) throws InterruptedException {
-        // Initialize simulation logic
+        // 1. Initialize the simulation logic engine first.
+        simulationEngine = new SimulationEngine();
 
-        // Initialize UI components
-        simulationPane = SimulationPane.getInstance(); // Pass engine to pane for drawing state
+        // 2. Initialize the main UI component, passing the engine to it.
+        //    The SimulationPane is the root of our scene.
+        SimulationPane simulationPane = new SimulationPane(simulationEngine);
 
-        // Setup UI (buttons, etc.) - could be handled by a UIController or directly in SimulationPane
-        // Example: If you have a separate UIController
-        // UIController uiController = new UIController(simulationEngine, simulationPane);
-        // uiController.setupControls(root); // root is the BorderPane
-
+        // 3. Create the main scene with the desired dimensions.
         Scene scene = new Scene(simulationPane.getRoot(), SimulationConfig.SCENE_WIDTH, SimulationConfig.SCENE_HEIGHT);
-        primaryStage.setTitle("Improved Crossroads Simulation");
+
+        // 4. Configure and show the primary stage (the application window).
+        primaryStage.setTitle("Crossroads Traffic Simulation");
         primaryStage.setScene(scene);
+        primaryStage.setResizable(false); // Optional: lock window size
         primaryStage.show();
 
-        // Start simulation updates (e.g., traffic light cycles, vehicle movements)
-        simulationPane.getSimulationEngine().startSimulation();
+        // 5. Start the simulation logic (traffic light cycles, vehicle movement).
+        simulationEngine.startSimulation();
 
+        // 6. Ensure the simulation's background threads are stopped when the window is closed.
         primaryStage.setOnCloseRequest(event -> {
-            simulationPane.getSimulationEngine().stopSimulation();
+            simulationEngine.stopSimulation();
+            // Platform.exit(); // Not strictly necessary but good practice
+            // System.exit(0);
         });
     }
 
+    /**
+     * The main method is only needed for the IDE in case JavaFX
+     * components are not launched properly.
+     *
+     * @param args command line arguments.
+     */
     public static void main(String[] args) {
         launch(args);
     }

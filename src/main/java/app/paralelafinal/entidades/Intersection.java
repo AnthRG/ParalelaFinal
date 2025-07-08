@@ -10,9 +10,9 @@ public class Intersection {
     private PriorityBlockingQueue<Vehicle> vehicleQueue;
     private boolean greenLight;  
 
-    public Intersection(String id, boolean rightTurnAllowed) {
+    public Intersection(String id) {
         this.id = id;
-        this.rightTurnAllowed = rightTurnAllowed;
+        this.rightTurnAllowed = true;
         this.vehicleQueue = new PriorityBlockingQueue<>(10,
             Comparator.comparingLong(Vehicle::getArrivalTime)
         );
@@ -62,5 +62,10 @@ public class Intersection {
     }
     public boolean hasGreenLight() {
         return greenLight;
+    }
+
+    public boolean hasEmergencyVehicleInQueue() {
+        return vehicleQueue.stream()
+                .anyMatch(vehicle -> "emergency".equals(vehicle.getType()));
     }
 }

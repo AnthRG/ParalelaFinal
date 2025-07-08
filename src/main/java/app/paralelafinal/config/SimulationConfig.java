@@ -30,4 +30,5 @@ public class SimulationConfig {
 
     // --- STOP SIGN OFFSET ---
     public static final double STOP_SIGN_OFFSET = 0;
+    public static final double LANE_WIDTH = ROAD_WIDTH / 2;
 }

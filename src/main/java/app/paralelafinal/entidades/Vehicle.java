@@ -9,16 +9,14 @@ public class Vehicle {
     private String direction; // "right", "straight", "left", "u-turn"
     private boolean inIntersection;
     private long arrivalTime;
-    private boolean crossingStarted = false;
-    
+
     // Nuevo campo para la posición
     private Point2D position;
 
     public Vehicle() {}
 
-    public Vehicle(String id, String type) {
+    public Vehicle(String id) {
         this.id = id;
-        this.type = type;
         int randomInt = ThreadLocalRandom.current().nextInt(0,4);
         switch (randomInt) {
             case 0:
@@ -33,6 +31,19 @@ public class Vehicle {
             default:
                 this.direction = "u-turn"; // Fallback case
         }
+
+        randomInt = ThreadLocalRandom.current().nextInt(0,1);
+        switch (randomInt) {
+            case 0:
+                this.type = "emergency";
+                break;
+            case 1:
+                this.type = "normal";
+                break;
+            default:
+                this.direction = "normal"; // Fallback case
+        }
+
         this.inIntersection = false; // Estado por defecto
         this.arrivalTime = System.nanoTime();
         // Posición inicial, puede ajustarse según tu lógica
@@ -65,15 +76,17 @@ public class Vehicle {
     public Point2D getPosition() {
         return position;
     }
-    
+
     public void setPosition(Point2D position) {
+
         this.position = position;
     }
-        public boolean isCrossingStarted() {
-        return crossingStarted;
-    }
-    public void setCrossingStarted(boolean v) {
-        this.crossingStarted = v;
+
+    // Método para mover el vehículo
+    public void move(Point2D movementVector) {
+        if (this.position != null && movementVector != null) {
+            this.position = this.position.add(movementVector);
+        }
     }
 
 }
