@@ -17,13 +17,12 @@ import java.util.stream.Stream;
  * Si hay múltiples vehículos de emergencia, se prioriza el que ha esperado más tiempo.
  * 2. Primer llegado, primer servido: En condiciones normales, el vehículo que ha esperado más tiempo
  * en todo el sistema tiene prioridad para pasar.
- * Solo un carril puede tener luz verde a la vez para evitar colisiones.
  */
 public class TrafficController {
 
     private final List<Intersection> intersections;
     private final ScheduledExecutorService scheduler;
-    private final ReentrantLock controlLock = new ReentrantLock(); // <-- AÑADIR ESTO
+    private final ReentrantLock controlLock = new ReentrantLock(); 
 
     public TrafficController(List<Intersection> intersections) {
         this.intersections = intersections;
@@ -82,7 +81,7 @@ public class TrafficController {
     }
 
     /**
-     * (NUEVO) Busca en todas las intersecciones para encontrar el vehículo de emergencia con mayor tiempo de espera.
+     *  Busca en todas las intersecciones para encontrar el vehículo de emergencia con mayor tiempo de espera.
      * Esto resuelve el conflicto cuando hay múltiples vehículos de emergencia en el sistema a la vez.
      *
      * @return Un Optional que contiene la intersección del vehículo de emergencia con mayor prioridad.

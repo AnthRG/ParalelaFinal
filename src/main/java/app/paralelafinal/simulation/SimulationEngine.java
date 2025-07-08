@@ -18,12 +18,7 @@ import java.util.function.Consumer;
 
 import static app.paralelafinal.config.SimulationConfig.*;
 import static app.paralelafinal.simulation.SimulationPane.getVehiclePosition;
-
-/**
- * The core engine for the traffic simulation.
- * This class manages the simulation state, including intersections and vehicles,
- * controls the simulation loop, and communicates with the UI for updates.
- */
+/
 public class SimulationEngine {
 
     // --- Simulation State ---
@@ -36,9 +31,6 @@ public class SimulationEngine {
 
     // --- Vehicle Movement Constants ---
 
-    /**
-     * Constructs the SimulationEngine, setting up the intersections and traffic controller.
-     */
     public SimulationEngine() {
         this.intersections = new ArrayList<>();
         setupIntersections();
@@ -54,12 +46,6 @@ public class SimulationEngine {
         intersections.add(new Intersection("East"));
         intersections.add(new Intersection("West"));
     }
-
-    /**
-     * Starts the simulation.
-     * This begins the traffic controller's logic and starts the main animation loop
-     * for moving vehicles and updating the UI.
-     */
     public void startSimulation() {
         trafficController.startControl();
 
@@ -89,13 +75,15 @@ public class SimulationEngine {
     }
 
     /**
-     * Adds a new vehicle to a specific intersection.
-     * This method calculates the vehicle's initial position and adds it to the correct queue.
-     * It ensures the operation is run on the JavaFX Application Thread for UI safety.
+     * Añade un nuevo vehiculo a una intersección específica.
+     * Calcula el posicionamiento inicial del vehículo y lo añade a la cola correspondiente.
+     * This method is designed to be called from the UI thread to ensure thread safety.
+     * 
+     * 
+     * @param tipo de vehiculo
+     * @param para una direccion específica a llegar
+     * @param el id de la intersección donde el vehículo debe comenzar.
      *
-     * @param type The type of vehicle ("normal", "emergency").
-     * @param direction The intended maneuver ("straight", "left", "right", "u-turn").
-     * @param intersectionId The ID of the intersection where the vehicle should start. ("North", "South", "East", "West").
      */
     public void addVehicle(String type, String direction, String intersectionId) {
         Platform.runLater(() -> {
@@ -121,7 +109,7 @@ public class SimulationEngine {
     }
 
     /**
-     * The main logic loop for updating the position of every vehicle in the simulation.
+     * logica para actualizar la posicion del vehiculo en la simulación.
      */
     private void updateVehiclePositions() {
         final Point2D center = new Point2D(SimulationConfig.SCENE_WIDTH / 2.0, SimulationConfig.SCENE_HEIGHT / 2.0);
@@ -136,7 +124,7 @@ public class SimulationEngine {
     }
 
     /**
-     * Processes the movement for all vehicles waiting at a single intersection.
+     * procesa el movimiento de cada vehiculon por posicion.
      */
     private void processVehiclesForIntersection(Intersection intersection, Point2D center, double stopLineDist, double removeDist) {
         boolean isGreenLight = intersection.hasGreenLight();
@@ -156,7 +144,7 @@ public class SimulationEngine {
 
 
     /**
-     * Handles the movement for the first vehicle in a queue.
+     * maneja el movimiento del primer vehiculo en la cola.
      */
     private void handleLeadVehicle(Vehicle vehicle, Intersection intersection, boolean isGreen, Point2D center, double stopLineDist, double removeDist) {
         if (isGreen) {
@@ -184,7 +172,7 @@ public class SimulationEngine {
     }
 
     /**
-     * Handles the movement logic for a vehicle that is following another vehicle.
+     * maneja el movimmiento logico para un vehiculo que sigue a otro vehiculo.
      */
     private void handleFollowingVehicle(Vehicle current, Vehicle preceding, Intersection intersection, Point2D center) {
         Point2D movementVector = calculateMovementVector(intersection, current, center);
@@ -200,13 +188,11 @@ public class SimulationEngine {
 
 
     /**
-     * Calculates the movement vector (deltaX, deltaY) for a vehicle based on its origin,
-     * intended maneuver, and position relative to the intersection's center.
-     *
-     * @param intersection The intersection the vehicle is approaching.
-     * @param vehicle The vehicle to move.
-     * @param center The center point of the intersection.
-     * @return A Point2D representing the change in X and Y for the next frame.
+     * 
+     * 
+     * calcula el movimiento del vector (deltaX, deltaY) para un vehiculo basado en su origen,
+     * maniobra prevista y posición relativa al centro de la intersección.
+     * .
      */
     Point2D calculateMovementVector(Intersection intersection, Vehicle vehicle, Point2D center) {
         if ("u-turn".equalsIgnoreCase(vehicle.getDirection())) {
@@ -230,21 +216,15 @@ public class SimulationEngine {
 
 // In SimulationEngine.java
 
-    /**
-     * Calculates the movement vector for a vehicle performing a U-turn.
-     * This is a stateful turn broken into three phases.
-     * @param intersection The intersection the vehicle is at.
-     * @param vehicle The vehicle performing the turn.
-     * @param center The center point of the intersection.
-     * @return A Point2D representing the movement vector for the current frame.
-     */
+
     private Point2D handleUTurnMovement(Intersection intersection, Vehicle vehicle, Point2D center) {
         String origin = intersection.getId().toLowerCase();
         Point2D position = vehicle.getPosition();
         String manuver = vehicle.getDirection().toLowerCase();
 
         switch (vehicle.getUTurnPhase()) {
-            // --- PHASE 0: APPROACH THE CENTER ---
+         
+            //fase 0: El vehiculo se acerca al centro de la intersección.
             case 0:
                 Point2D approachVector = getPreCenterMovement(origin);
 
@@ -253,7 +233,8 @@ public class SimulationEngine {
                 }
                 return approachVector;
 
-            // --- PHASE 1: PERFORM THE LATERAL PART OF THE TURN ---
+            //fase 1: El vehiculo realiza el giro lateral.
+             
             case 1:
                 double turnFactor = 0.5;
 
@@ -289,7 +270,7 @@ public class SimulationEngine {
                 }
                 return turnVector;
 
-            // --- PHASE 2: EXIT THE INTERSECTION ---
+            //fase 2: El vehiculo sale de la intersección.
             case 2:
                 return getPreCenterMovement(origin).multiply(-1);
 
@@ -298,7 +279,8 @@ public class SimulationEngine {
         }
     }
     /**
-     * Determines if a vehicle has crossed the central point of the intersection.
+     
+     * Determina si el vehiculo ha cruzado el punto central de la intersección.
      */
     private boolean hasVehiclePassedCenter(String origin, Point2D position, Point2D center, String maneuver) {
         if("left".equalsIgnoreCase(maneuver)){
@@ -333,7 +315,8 @@ public class SimulationEngine {
 
 
     /**
-     * Gets the movement vector for a vehicle approaching the center.
+     
+     * tome el movimiento del vector para  un vehiculo que se acerca al centro de la intersección.
      */
     private Point2D getPreCenterMovement(String origin) {
         return switch (origin) {
@@ -380,7 +363,6 @@ public class SimulationEngine {
     }
 
 
-    // --- Getters and Helpers ---
 
     public List<Intersection> getIntersections() {
         return intersections;
@@ -392,7 +374,7 @@ public class SimulationEngine {
                 .findFirst();
     }
 
-    // Setter for UI to register a callback
+    
     public void setUiUpdateCallback(Consumer<Void> uiUpdateCallback) {
         this.uiUpdateCallback = uiUpdateCallback;
     }

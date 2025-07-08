@@ -18,8 +18,6 @@ public class Intersection {
         );
 
     }
-
-    // --- getters y setters básicos ---
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -29,17 +27,17 @@ public class Intersection {
     public PriorityBlockingQueue<Vehicle> getVehicleQueue() { return vehicleQueue; }
     public void setVehicleQueue(PriorityBlockingQueue<Vehicle> q) { this.vehicleQueue = q; }
 
-    /** Encola un vehículo (se añade según prioridad) */
+    // Encola un vehículo (se añade según prioridad) 
     public void addVehicle(Vehicle v) {
         vehicleQueue.add(v);
     }
 
-    /** Devuelve sin quitar el vehículo que está al frente de la cola */
+    // Devuelve sin quitar el vehículo que está al frente de la cola 
     public Vehicle peekNextVehicle() {
         return vehicleQueue.peek();
     }
 
-    /** Quita de la cola al vehículo que acaba de cruzar */
+    // Quita de la cola al vehículo que acaba de cruzar 
     public void removeNextVehicle() {
         vehicleQueue.poll();
     }

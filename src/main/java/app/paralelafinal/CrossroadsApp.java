@@ -17,12 +17,11 @@ public class CrossroadsApp extends Application {
     private SimulationEngine simulationEngine;
 
     /**
-     * The main entry point for all JavaFX applications.
-     * The start method is called after the init method has returned,
-     * and after the system is ready for the application to begin running.
+     * Esta es la clase principal de la aplicación JavaFX.
+     * Aquí se inicializa el motor de simulación y se configura la interfaz de usuario.
+     * 
+     *@param primaryStage la principal ventana de la aplicación.
      *
-     * @param primaryStage the primary stage for this application, onto which
-     * the application scene can be set.
      */
     @Override
     public void start(Stage primaryStage) throws InterruptedException {
@@ -42,12 +41,6 @@ public class CrossroadsApp extends Application {
         });
     }
 
-    /**
-     * The main method is only needed for the IDE in case JavaFX
-     * components are not launched properly.
-     *
-     * @param args command line arguments.
-     */
     public static void main(String[] args) {
         launch(args);
     }

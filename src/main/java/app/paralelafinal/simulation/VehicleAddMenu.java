@@ -31,7 +31,7 @@ public class VehicleAddMenu {
         for (int col = 0; col < intersections.length; col++) {
             String intersectionId = intersections[col];
 
-            // Header Label (e.g., "North")
+            
             Label headerLabel = new Label(intersectionId);
             headerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
             GridPane.setConstraints(headerLabel, col, 0);
@@ -40,21 +40,21 @@ public class VehicleAddMenu {
             VBox buttonContainer = new VBox(5);
             buttonContainer.setAlignment(Pos.CENTER_LEFT);
 
-            // Maneuver Buttons
+           
             for (String direction : directions) {
                 Button btn = new Button(direction);
                 btn.setMinWidth(80);
                 btn.setOnAction(e -> {
-                    // This is a placeholder for the CheckBox logic
+                    
                 });
                 buttonContainer.getChildren().add(btn);
             }
 
-            // Emergency CheckBox
+            
             CheckBox emergencyCheck = new CheckBox("Emergency");
             buttonContainer.getChildren().add(emergencyCheck);
 
-            // Add action handlers to buttons now that checkbox exists
+        
             for (int i = 0; i < directions.length; i++) {
                 Button btn = (Button) buttonContainer.getChildren().get(i);
                 final String finalDirection = directions[i];
@@ -70,6 +70,6 @@ public class VehicleAddMenu {
 
         Scene scene = new Scene(grid);
         window.setScene(scene);
-        window.show(); // Use show() instead of showAndWait() to allow interaction with main window
+        window.show(); 
     }
 }

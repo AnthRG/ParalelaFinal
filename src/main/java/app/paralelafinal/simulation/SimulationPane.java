@@ -35,7 +35,6 @@ public class SimulationPane {
     private static SimulationEngine simulationEngine;
     private static SimulationPane simulationPane;
     private Map<Vehicle, Circle> vehicleNodes = new HashMap<>();
-    // Map to link backend TrafficLight objects to their JavaFX visual representations
     private Map<String, TrafficLightVisuals> trafficLightVisualsMap;
 
     public SimulationPane(SimulationEngine engine) throws InterruptedException {
@@ -44,7 +43,7 @@ public class SimulationPane {
         simulationCanvas = new Pane();
         this.trafficLightVisualsMap = new HashMap<>();
         setupUI();
-        // Register this pane to be updated by the simulation engine
+       
         simulationEngine.setUiUpdateCallback(v -> {
             try {
                 updateAllVisuals();
@@ -58,7 +57,7 @@ public class SimulationPane {
     Circle c = new Circle(8);
     c.setCenterX(v.getPosition().getX());
     c.setCenterY(v.getPosition().getY());
-    // opcional: color según tipo
+    // color según tipo
     c.setFill(v.getType().equals("emergency") ? Color.RED : Color.BLUE);
     vehicleNodes.put(v, c);
     root.getChildren().add(c);
@@ -131,15 +130,14 @@ public class SimulationPane {
     }
 
     /**
-     * This method will be called by the SimulationEngine to trigger UI updates.
+     * 
+     * este método se encarga de actualizar todos los elementos visuales de la simulación.
      */
     public static void updateAllVisuals() throws InterruptedException {
         //updateTrafficLightVisuals();
         drawVehicles();
     }
 
-
-    // --- All your existing drawing methods go here, adapted to use SimulationConfig ---
 
     private static void drawRoads(Pane pane) {
         double centerX = SimulationConfig.SCENE_WIDTH / 2;
@@ -298,7 +296,7 @@ public class SimulationPane {
                 sprite.setLayoutX(pos.getX());
                 sprite.setLayoutY(pos.getY());
 
-                //  Finalmente, añádelo al canvas de simulación
+                //  Finalmente, se añade al canvas de simulación
                 simulationCanvas.getChildren().add(sprite);
             }
         }
