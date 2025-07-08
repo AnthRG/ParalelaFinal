@@ -1,5 +1,6 @@
 package app.paralelafinal.entidades;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -12,15 +13,10 @@ public class Intersection {
     public Intersection(String id, boolean rightTurnAllowed) {
         this.id = id;
         this.rightTurnAllowed = rightTurnAllowed;
-        this.vehicleQueue = new PriorityBlockingQueue<>(10, (v1, v2) -> {
-            // 1) Emergencias primero
-            boolean v1Emer = "emergency".equalsIgnoreCase(v1.getType());
-            boolean v2Emer = "emergency".equalsIgnoreCase(v2.getType());
-            if (v1Emer && !v2Emer) return -1;
-            if (!v1Emer && v2Emer) return 1;
-            // 2) Luego por tiempo de llegada (más antiguo, más prioridad)
-            return Long.compare(v1.getArrivalTime(), v2.getArrivalTime());
-        });
+        this.vehicleQueue = new PriorityBlockingQueue<>(10,
+            Comparator.comparingLong(Vehicle::getArrivalTime)
+        );
+
     }
 
     // --- getters y setters básicos ---

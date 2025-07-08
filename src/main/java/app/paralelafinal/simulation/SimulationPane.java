@@ -77,7 +77,7 @@ public class SimulationPane {
 
     private static void setupUI() throws InterruptedException {
         simulationCanvas.setPrefSize(SimulationConfig.SCENE_WIDTH, SimulationConfig.SCENE_HEIGHT);
-        simulationCanvas.setStyle("-fx-background-color: #89CFF0;"); // Sky blue background
+        simulationCanvas.setStyle("-fx-background-color:rgba(31, 194, 118, 0.99);"); // GREEN background
 
         // --- Draw all static visual elements ---
         drawRoads(simulationCanvas);

@@ -78,6 +78,7 @@ public class SimulationEngine {
         }));
         animation.setCycleCount(Timeline.INDEFINITE);
         animation.play();
+        
     }
 
     public void stopSimulation() {
@@ -154,56 +155,59 @@ public class SimulationEngine {
         double speed   = 5.0;
         double safeGap = 5.0;  // espacio mínimo entre vehículos
 
+        // 1) Centro de la intersección
         Point2D center = new Point2D(
             SimulationConfig.SCENE_WIDTH  / 2.0,
             SimulationConfig.SCENE_HEIGHT / 2.0
         );
+        // 2) Línea de PARE: mitad de la carretera + mitad del vehículo
         double stopLineDist = SimulationConfig.ROAD_WIDTH / 2.0
                             + SimulationConfig.VEHICLE_LENGTH / 2.0;
-        double removeDist   = stopLineDist + SimulationConfig.VEHICLE_LENGTH;
+        // 3) Umbral de remoción
+        double removeDist = stopLineDist + SimulationConfig.VEHICLE_LENGTH;
 
         for (Intersection intersection : intersections) {
             boolean green = intersection.hasGreenLight();
 
-            // Snapshot ordenado
+            // 4) Snapshot ordenado de la cola
             List<Vehicle> ordered = new ArrayList<>(intersection.getVehicleQueue());
             Comparator<? super Vehicle> cmp = intersection.getVehicleQueue().comparator();
             if (cmp != null) ordered.sort(cmp);
 
+            // 5) Procesa cabeza y seguidores
             for (int i = 0; i < ordered.size(); i++) {
-                Vehicle v   = ordered.get(i);
+                Vehicle v = ordered.get(i);
                 Point2D pos = v.getPosition();
                 double dist = pos.distance(center);
 
-                // A) CABEZA
+                // A) Cabeza
                 if (i == 0) {
-                    // Si está en zona de frenado y la luz está en rojo → espera
                     if (dist <= stopLineDist && !green) {
+                        // llegó a PARE y la luz está en rojo → no avanza
                         continue;
                     }
-
-                    // Se mueve
-                    Point2D delta = computeDelta(intersection, v, speed, center);
-                    v.setPosition(pos.add(delta));
-
-                    // Si ya cruzó por completo → lo quitamos
-                    Point2D newPos = v.getPosition();
-                    double newDist = newPos.distance(center);
-                    if (newDist > removeDist) {
+                    if (dist > removeDist && green) {
+                        // ya cruzó → lo quitamos
                         intersection.removeNextVehicle();
+                        continue;
                     }
-
+                    // si puede, calculamos delta más abajo…
+                }
+                // B) Seguidores: sólo espacio
+                else {
+                    Point2D prevPos = ordered.get(i - 1).getPosition();
+                    Point2D delta   = computeDelta(intersection, v, speed, center);
+                    Point2D nextPos = pos.add(delta);
+                    if (nextPos.distance(prevPos) < SimulationConfig.VEHICLE_LENGTH + safeGap) {
+                        continue;  // respeta el hueco
+                    }
+                    v.setPosition(nextPos);
                     continue;
                 }
 
-                // B) SEGUIDORES: mantienen separación
-                Point2D prevPos = ordered.get(i - 1).getPosition();
-                Point2D delta   = computeDelta(intersection, v, speed, center);
-                Point2D nextPos = pos.add(delta);
-                if (nextPos.distance(prevPos) < SimulationConfig.VEHICLE_LENGTH + safeGap) {
-                    continue;
-                }
-                v.setPosition(nextPos);
+                // C) Movimiento de la cabeza (light + giro post-centro)
+                Point2D delta = computeDelta(intersection, v, speed, center);
+                v.setPosition(pos.add(delta));
             }
         }
 }
