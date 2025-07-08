@@ -95,7 +95,7 @@ public class SimulationPane {
         //randomBox.setPadding(new Insets(10));
 
         // — Controles de generación manual — 
-        Label originLabel = new Label("Intersección:");
+       /*  Label originLabel = new Label("Intersección:");
         ComboBox<String> originCombo = new ComboBox<>();
         originCombo.getItems().addAll("North", "South", "East", "West");
         originCombo.setValue("North");
@@ -108,26 +108,19 @@ public class SimulationPane {
         Label dirLabel = new Label("Giro:");
         ComboBox<String> dirCombo = new ComboBox<>();
         dirCombo.getItems().addAll("right", "straight", "left", "u-turn");
-        dirCombo.setValue("straight");
+        dirCombo.setValue("straight");*/
 
-        // --- Botón para agregar vehículo manual ---
+        // Botón para agregar vehículo manual 
         Button addVehicleButton = new Button("Add Vehicle");
         addVehicleButton.setOnAction(e -> VehicleAddMenu.display(simulationEngine));
 
-        HBox manualControls = new HBox(10,
-            originLabel, originCombo,
-            typeLabel,   typeCombo,
-            dirLabel,    dirCombo,
-                addVehicleButton
-        );
+        // Creamos un HBox solo con el botón, centrado
+        HBox manualControls = new HBox(addVehicleButton);
         manualControls.setAlignment(Pos.CENTER);
         manualControls.setPadding(new Insets(10));
 
-        // Empaqueta ambos en un VBox:
-        VBox controlsBox = new VBox(5, manualControls);
-        controlsBox.setAlignment(Pos.CENTER);
-        controlsBox.setPadding(new Insets(5));
-        root.setBottom(controlsBox);
+        // Añadimos al layout principal (en lugar del HBox anterior)
+        root.setBottom(manualControls);
 
         // Initial update to draw everything based on the simulation engine's initial state
         updateAllVisuals();
