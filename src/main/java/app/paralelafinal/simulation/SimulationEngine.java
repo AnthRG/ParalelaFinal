@@ -254,7 +254,7 @@ public class SimulationEngine {
 
             // --- PHASE 1: PERFORM THE LATERAL PART OF THE TURN ---
             case 1:
-                double turnFactor = 0.1;
+                double turnFactor = 0.5;
 
                 double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
                 double turnDistance = laneWidth * turnFactor;
@@ -300,11 +300,15 @@ public class SimulationEngine {
      * Determines if a vehicle has crossed the central point of the intersection.
      */
     private boolean hasVehiclePassedCenter(String origin, Point2D position, Point2D center) {
+        double laneWidth = SimulationConfig.ROAD_WIDTH / 2.0;
+        double turnFactor = 0.5;
+        double turnDistance = laneWidth * turnFactor;
+
         return switch (origin) {
-            case "north" -> position.getY() >= center.getY();
-            case "south" -> position.getY() <= center.getY();
-            case "east" -> position.getX() <= center.getX();
-            case "west" -> position.getX() >= center.getX();
+            case "north" -> position.getY() >= center.getY() + turnDistance;
+            case "south" -> position.getY() <= center.getY() - turnDistance;
+            case "east" -> position.getX() <= center.getX() - turnDistance;
+            case "west" -> position.getX() >= center.getX() + turnDistance;
             default -> false;
         };
     }
@@ -314,10 +318,10 @@ public class SimulationEngine {
      */
     private Point2D getPreCenterMovement(String origin) {
         return switch (origin) {
-            case "north" -> new Point2D(0, VEHICLE_SPEED_ES);  // Move South
+            case "north" -> new Point2D(0, VEHICLE_SPEED);  // Move South
             case "south" -> new Point2D(0, -VEHICLE_SPEED); // Move North
             case "east" -> new Point2D(-VEHICLE_SPEED, 0); // Move West
-            case "west" -> new Point2D(VEHICLE_SPEED_ES, 0);  // Move East
+            case "west" -> new Point2D(VEHICLE_SPEED, 0);  // Move East
             default -> Point2D.ZERO;
         };
     }
@@ -333,8 +337,8 @@ public class SimulationEngine {
 
         return switch (origin) {
             case "north" -> switch (maneuver) {
-                case "left" -> new Point2D(VEHICLE_SPEED_ES, 0);
-                case "right" -> new Point2D(-VEHICLE_SPEED_ES, 0);
+                case "left" -> new Point2D(VEHICLE_SPEED, 0);
+                case "right" -> new Point2D(-VEHICLE_SPEED, 0);
                 default -> getPreCenterMovement(origin);
             };
             case "south" -> switch (maneuver) {
@@ -348,8 +352,8 @@ public class SimulationEngine {
                 default -> getPreCenterMovement(origin);
             };
             case "west" -> switch (maneuver) {
-                case "left" -> new Point2D(0, -VEHICLE_SPEED_ES);
-                case "right" -> new Point2D(0, VEHICLE_SPEED_ES);
+                case "left" -> new Point2D(0, -VEHICLE_SPEED);
+                case "right" -> new Point2D(0, VEHICLE_SPEED);
                 default -> getPreCenterMovement(origin);
             };
             default -> Point2D.ZERO;

@@ -21,7 +21,7 @@ public class SimulationConfig {
 
     // --- SIMULATION TIMING ---
     public static final long TRAFFIC_LIGHT_SWITCH_INTERVAL_SECONDS = 10;
-    public static final long VEHICLE_UPDATE_INTERVAL_MS = 500;
+    public static final long VEHICLE_UPDATE_INTERVAL_MS = 1;
 
     // --- VEHICLE DIMENSIONS ---
     public static final double VEHICLE_LENGTH = 40;
@@ -32,8 +32,8 @@ public class SimulationConfig {
     public static final double STOP_SIGN_OFFSET = 0;
     public static final double LANE_WIDTH = ROAD_WIDTH / 2;
 
-    public static final double VEHICLE_SPEED = 60.0;
-    public static final double VEHICLE_SPEED_ES = 50.0;
+    public static final double VEHICLE_SPEED = 1;
+    public static final double VEHICLE_SPEED_ES = 1;
     public static final double SAFE_FOLLOWING_GAP = 5.0;
 
 }
