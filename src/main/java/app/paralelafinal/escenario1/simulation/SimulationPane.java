@@ -1,7 +1,7 @@
 // app.paralelafinal.ui.SimulationPane
 package app.paralelafinal.escenario1.simulation;
 
-import app.paralelafinal.escenario1.config.SimulationConfig;
+import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.escenario1.entidades.Intersection;
 import app.paralelafinal.escenario1.entidades.Vehicle;
 import javafx.geometry.Insets;
