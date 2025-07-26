@@ -1,9 +1,9 @@
-package app.paralelafinal.simulation;
+package app.paralelafinal.escenario1.simulation;
 
-import app.paralelafinal.config.SimulationConfig;
-import app.paralelafinal.controladores.TrafficController;
-import app.paralelafinal.entidades.Intersection;
-import app.paralelafinal.entidades.Vehicle;
+import app.paralelafinal.escenario1.config.SimulationConfig;
+import app.paralelafinal.escenario1.controladores.TrafficController;
+import app.paralelafinal.escenario1.entidades.Intersection;
+import app.paralelafinal.escenario1.entidades.Vehicle;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -11,13 +11,11 @@ import javafx.geometry.Point2D;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Random;
 import java.util.function.Consumer;
 
-import static app.paralelafinal.config.SimulationConfig.*;
-import static app.paralelafinal.simulation.SimulationPane.getVehiclePosition;
+import static app.paralelafinal.escenario1.config.SimulationConfig.*;
+import static app.paralelafinal.escenario1.simulation.SimulationPane.getVehiclePosition;
 
 public class SimulationEngine {
 

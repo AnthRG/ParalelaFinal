@@ -1,4 +1,4 @@
-package app.paralelafinal.simulation;
+package app.paralelafinal.escenario1.simulation;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

@@ -1,5 +1,5 @@
 // app.paralelafinal.ui.TrafficLightVisuals
-package app.paralelafinal.simulation;
+package app.paralelafinal.escenario1.simulation;
 
 import javafx.scene.effect.Glow;
 import javafx.scene.paint.Color;

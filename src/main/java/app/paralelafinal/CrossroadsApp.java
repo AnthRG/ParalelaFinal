@@ -1,8 +1,8 @@
 package app.paralelafinal;
 
-import app.paralelafinal.config.SimulationConfig;
-import app.paralelafinal.simulation.SimulationEngine;
-import app.paralelafinal.simulation.SimulationPane;
+import app.paralelafinal.escenario1.config.SimulationConfig;
+import app.paralelafinal.escenario1.simulation.SimulationEngine;
+import app.paralelafinal.escenario1.simulation.SimulationPane;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;

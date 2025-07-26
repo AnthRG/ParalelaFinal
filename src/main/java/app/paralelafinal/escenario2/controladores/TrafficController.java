@@ -1,7 +1,7 @@
 package app.paralelafinal.escenario2.controladores;
 
-import app.paralelafinal.entidades.Intersection;
-import app.paralelafinal.entidades.Vehicle;
+import app.paralelafinal.escenario1.entidades.Intersection;
+import app.paralelafinal.escenario1.entidades.Vehicle;
 
 import java.util.Comparator;
 import java.util.List;

@@ -1,4 +1,4 @@
-package app.paralelafinal.config;
+package app.paralelafinal.escenario1.config;
 
 public class SimulationConfig {
     // --- SCENE & ROAD DIMENSIONS ---

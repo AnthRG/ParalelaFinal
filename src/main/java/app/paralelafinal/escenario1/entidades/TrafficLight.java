@@ -1,4 +1,4 @@
-package app.paralelafinal.entidades;
+package app.paralelafinal.escenario1.entidades;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

@@ -1,4 +1,4 @@
-package app.paralelafinal.entidades;
+package app.paralelafinal.escenario1.entidades;
 
 import javafx.geometry.Point2D;
 import java.util.concurrent.ThreadLocalRandom;

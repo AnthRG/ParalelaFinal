@@ -1,10 +1,9 @@
 // app.paralelafinal.ui.SimulationPane
-package app.paralelafinal.simulation;
+package app.paralelafinal.escenario1.simulation;
 
-import app.paralelafinal.config.SimulationConfig;
-import app.paralelafinal.entidades.Intersection;
-import app.paralelafinal.entidades.TrafficLight;
-import app.paralelafinal.entidades.Vehicle; 
+import app.paralelafinal.escenario1.config.SimulationConfig;
+import app.paralelafinal.escenario1.entidades.Intersection;
+import app.paralelafinal.escenario1.entidades.Vehicle;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -12,9 +11,7 @@ import javafx.scene.Group;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -23,9 +20,6 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.PriorityBlockingQueue;
-
-
 
 
 public class SimulationPane {
