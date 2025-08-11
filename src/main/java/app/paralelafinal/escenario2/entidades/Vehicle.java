@@ -8,6 +8,7 @@ public class Vehicle {
     private String id;
     private String type; // "normal" or "emergency"
     private String direction; // "right", "straight", "left", "u-turn"
+    private String intersectionId; // ID of the intersection of the goal
     private boolean inIntersection;
     private long arrivalTime;
     private int uTurnPhase = 0; // 0: approaching, 1: turning, 2: exiting

@@ -6,9 +6,9 @@ public class TrafficLight {
     private String id;
     private AtomicBoolean green;
 
-    public TrafficLight(String id) {
+    public TrafficLight(String id, AtomicBoolean green) {
         this.id = id;
-        this.green = new AtomicBoolean(false);
+        this.green = green;
     }
 
     public String getId() {
