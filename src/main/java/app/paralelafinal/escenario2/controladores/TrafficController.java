@@ -52,6 +52,11 @@ public class TrafficController {
     private void autoLights() {
         controlLock.lock();
         try {
+            // Do not toggle lights while an emergency vehicle is present
+            if (HasEmergencyVehicle() != null) {
+                return;
+            }
+
             RightIntersections.forEach(intersection -> {
                 TrafficLight light = intersection.getTrafficLight();
                 light.changeLight();
@@ -140,6 +145,7 @@ public class TrafficController {
         }
     }
 
-
-
+    public List<Intersection> getIntersections() {
+        return Intersections;
+    }
 }
