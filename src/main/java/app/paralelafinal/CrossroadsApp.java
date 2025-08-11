@@ -3,7 +3,7 @@ package app.paralelafinal;
 import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.escenario1.simulation.SimulationEngine;
 import app.paralelafinal.escenario1.simulation.SimulationPane;
-import app.paralelafinal.escenario2.simulation.RoadGridApp;
+import app.paralelafinal.escenario2.simulation.SimulationPane2;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -197,7 +197,7 @@ public class CrossroadsApp extends Application {
 
             // Create a new stage for scenario 2
             Stage scenario2Stage = new Stage();
-            RoadGridApp roadGridApp = new RoadGridApp();
+            SimulationPane2 roadGridApp = new SimulationPane2();
             roadGridApp.start(scenario2Stage);
 
             // Handle closing

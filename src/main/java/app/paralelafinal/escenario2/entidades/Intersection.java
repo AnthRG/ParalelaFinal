@@ -25,6 +25,8 @@ public class Intersection {
         this.LeftVQueue = new PriorityBlockingQueue<>(10,
                 Comparator.comparingLong(Vehicle::getArrivalTime)
         );
+        // Initialize a traffic light bound to this intersection's green flag to avoid NPEs
+        this.trafficLight = new TrafficLight(id, greenLight);
     }
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -71,6 +73,7 @@ public class Intersection {
                 break;
             case "u-turn":
                 LeftVQueue.add(v);
+                break;
             default:
                 throw new IllegalArgumentException("Invalid direction: " + v.getDirection());
         }

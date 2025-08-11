@@ -1,12 +1,20 @@
 package app.paralelafinal.escenario2.simulation;
 
 import app.paralelafinal.config.SimulationConfig;
+import app.paralelafinal.escenario2.entidades.Intersection;
+import app.paralelafinal.escenario2.entidades.Vehicle;
 import javafx.application.Application;
+import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 
 /**
@@ -15,7 +23,7 @@ import javafx.stage.Stage;
  * Vertical roads have 1 lane per direction (2 lanes total).
  * The roads have dashed lane dividers that are interrupted at intersections.
  */
-public class RoadGridApp extends Application {
+public class SimulationPane2 extends Application {
     
     // Canvas dimensions - using SimulationConfig
     private static final double CANVAS_WIDTH = SimulationConfig.SCENE_WIDTH;
@@ -44,8 +52,23 @@ public class RoadGridApp extends Application {
         // Draw the road grid
         drawRoadGrid(gc);
         
-        // Create the scene
-        StackPane root = new StackPane(canvas);
+        // Dynamic layer for vehicles
+        Pane vehiclesLayer = new Pane();
+        vehiclesLayer.setPickOnBounds(false);
+
+        // Create engine and add-vehicle menu button
+        SimulationEngine2 simulationEngine = new SimulationEngine2();
+        simulationEngine.setUiUpdateCallback(v -> drawVehicles(vehiclesLayer, simulationEngine));
+        simulationEngine.start();
+
+        Button addVehicleButton = new Button("Add Vehicle");
+        addVehicleButton.setOnAction(e -> VehicleAddMenu2.display(simulationEngine));
+
+        // Create the scene with overlay button and vehicles layer
+        StackPane root = new StackPane();
+        root.getChildren().addAll(canvas, vehiclesLayer, addVehicleButton);
+        StackPane.setAlignment(addVehicleButton, Pos.BOTTOM_CENTER);
+
         Scene scene = new Scene(root, CANVAS_WIDTH, CANVAS_HEIGHT);
         scene.setFill(Color.WHITE); // Set white background
         
@@ -199,6 +222,97 @@ public class RoadGridApp extends Application {
         gc.strokeLine(x2, horizRoad2End, x2, CANVAS_HEIGHT);
     }
     
+    private void drawVehicles(Pane layer, SimulationEngine2 engine) {
+        // Remove previous vehicle nodes
+        layer.getChildren().removeIf(node -> "vehicle".equals(node.getUserData()));
+
+        for (Intersection intersection : engine.getIntersections()) {
+            // Iterate each queue: mid, right, left
+            for (Vehicle v : intersection.getMidVQueue()) {
+                addVehicleNode(layer, v, intersection.getId());
+            }
+            for (Vehicle v : intersection.getRightVQueue()) {
+                addVehicleNode(layer, v, intersection.getId());
+            }
+            for (Vehicle v : intersection.getLeftVQueue()) {
+                addVehicleNode(layer, v, intersection.getId());
+            }
+        }
+    }
+
+    private void addVehicleNode(Pane layer, Vehicle v, String intersectionId) {
+        Group sprite = createVehicleShape(v);
+        sprite.setUserData("vehicle");
+
+        // Determine heading based on side: East* moves westbound (180 deg), West* moves eastbound (0 deg)
+        double angle = intersectionId.startsWith("East") ? 180 : 0;
+        sprite.setRotate(angle);
+
+        // Position at vehicle's logical coordinates
+        if (v.getPosition() != null) {
+            sprite.setLayoutX(v.getPosition().getX());
+            sprite.setLayoutY(v.getPosition().getY());
+        }
+
+        layer.getChildren().add(sprite);
+    }
+
+    private Group createVehicleShape(Vehicle v) {
+        Group vehicleGroup = new Group();
+
+        Rectangle body = new Rectangle(SimulationConfig.VEHICLE_LENGTH, SimulationConfig.VEHICLE_WIDTH);
+        body.setArcWidth(5);
+        body.setArcHeight(5);
+
+        if ("emergency".equalsIgnoreCase(v.getType())) {
+            body.setFill(Color.RED);
+            body.setStroke(Color.YELLOW);
+            body.setStrokeWidth(2);
+
+            Rectangle light1 = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.3, 3);
+            light1.setFill(Color.YELLOW);
+            light1.setX(SimulationConfig.VEHICLE_LENGTH * 0.1);
+            light1.setY(-2);
+
+            Rectangle light2 = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.3, 3);
+            light2.setFill(Color.BLUE);
+            light2.setX(SimulationConfig.VEHICLE_LENGTH * 0.6);
+            light2.setY(-2);
+
+            vehicleGroup.getChildren().addAll(body, light1, light2);
+        } else {
+            Color[] carColors = {Color.BLUE, Color.GREEN, Color.PURPLE, Color.ORANGE, Color.BROWN, Color.NAVY};
+            body.setFill(carColors[Math.abs(v.getId().hashCode()) % carColors.length]);
+            body.setStroke(Color.BLACK);
+            body.setStrokeWidth(1);
+            vehicleGroup.getChildren().add(body);
+        }
+
+        Rectangle frontWindow = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.15, SimulationConfig.VEHICLE_WIDTH * 0.6);
+        frontWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        frontWindow.setX(SimulationConfig.VEHICLE_LENGTH * 0.75);
+        frontWindow.setY(SimulationConfig.VEHICLE_WIDTH * 0.2);
+
+        Rectangle backWindow = new Rectangle(SimulationConfig.VEHICLE_LENGTH * 0.15, SimulationConfig.VEHICLE_WIDTH * 0.6);
+        backWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
+        backWindow.setX(SimulationConfig.VEHICLE_LENGTH * 0.1);
+        backWindow.setY(SimulationConfig.VEHICLE_WIDTH * 0.2);
+
+        Circle wheel1 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.2, SimulationConfig.VEHICLE_WIDTH + 2, 3);
+        wheel1.setFill(Color.BLACK);
+        Circle wheel2 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.8, SimulationConfig.VEHICLE_WIDTH + 2, 3);
+        wheel2.setFill(Color.BLACK);
+        Circle wheel3 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.2, -2, 3);
+        wheel3.setFill(Color.BLACK);
+        Circle wheel4 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.8, -2, 3);
+        wheel4.setFill(Color.BLACK);
+
+        vehicleGroup.getChildren().addAll(frontWindow, backWindow, wheel1, wheel2, wheel3, wheel4);
+        vehicleGroup.setUserData("vehicle");
+
+        return vehicleGroup;
+    }
+
     public static void main(String[] args) {
         launch(args);
     }

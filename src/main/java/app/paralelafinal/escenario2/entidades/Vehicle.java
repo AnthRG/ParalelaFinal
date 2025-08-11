@@ -8,8 +8,8 @@ public class Vehicle {
     private String id;
     private String type; // "normal" or "emergency"
     private String direction; // "right", "straight", "left", "u-turn"
-    private String intersectionId; // ID of the intersection of the goal
-    private boolean inIntersection;
+    private String goal; // ID of the intersection of the goal
+    private String inIntersection;
     private long arrivalTime;
     private int uTurnPhase = 0; // 0: approaching, 1: turning, 2: exiting
 
@@ -46,17 +46,16 @@ public class Vehicle {
             default:
                 this.direction = "normal"; // Fallback case
         }
-
-        this.inIntersection = false; // Estado por defecto
         this.arrivalTime = System.nanoTime();
         // Posición inicial, puede ajustarse según tu lógica
         this.position = new Point2D(0, 0);
     }
 
-    public Vehicle(String id, String type, String direction, boolean inIntersection) {
+    public Vehicle(String id, String type, String direction, String goal, String inIntersection) {
         this.id = id;
         this.type = type;
         this.direction = direction;
+        this.goal = goal;
         this.inIntersection = inIntersection;
         this.arrivalTime = System.nanoTime();
         // Asigna una posición por defecto
@@ -70,8 +69,31 @@ public class Vehicle {
     public void setType(String type) { this.type = type; }
     public String getDirection() { return direction; }
     public void setDirection(String direction) { this.direction = direction; }
-    public boolean isInIntersection() { return inIntersection; }
-    public void setInIntersection(boolean inIntersection) { this.inIntersection = inIntersection; }
+
+    public String getGoal() {
+        return this.goal;
+    }
+
+    public void setGoal(String goal) {
+        this.goal = goal;
+    }
+
+    public String getInIntersection() {
+        return inIntersection;
+    }
+
+    public void setInIntersection(String inIntersection) {
+        this.inIntersection = inIntersection;
+    }
+
+    public int getuTurnPhase() {
+        return uTurnPhase;
+    }
+
+    public void setuTurnPhase(int uTurnPhase) {
+        this.uTurnPhase = uTurnPhase;
+    }
+
     public long getArrivalTime() { return arrivalTime; }
     public void setArrivalTime(long arrivalTime) { this.arrivalTime = arrivalTime; }
     
