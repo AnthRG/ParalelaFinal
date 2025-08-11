@@ -1,6 +1,6 @@
 package app.paralelafinal.escenario1.simulation;
 
-import app.paralelafinal.escenario1.config.SimulationConfig;
+import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.escenario1.controladores.TrafficController;
 import app.paralelafinal.escenario1.entidades.Intersection;
 import app.paralelafinal.escenario1.entidades.Vehicle;
@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static app.paralelafinal.escenario1.config.SimulationConfig.*;
+import static app.paralelafinal.config.SimulationConfig.*;
 import static app.paralelafinal.escenario1.simulation.SimulationPane.getVehiclePosition;
 
 public class SimulationEngine {
