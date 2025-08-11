@@ -145,7 +145,7 @@ public class SimulationEngine {
      * maneja el movimiento del primer vehiculo en la cola.
      */
     private void handleLeadVehicle(Vehicle vehicle, Intersection intersection, boolean isGreen, Point2D center, double stopLineDist, double removeDist) {
-        if (isGreen) {
+        if (isGreen && trafficController.isVehicleAuthorizedToMove(vehicle)) {
             double distanceToCenter = vehicle.getPosition().distance(center);
 
             if (distanceToCenter > removeDist) {
@@ -173,6 +173,12 @@ public class SimulationEngine {
      * maneja el movimmiento logico para un vehiculo que sigue a otro vehiculo.
      */
     private void handleFollowingVehicle(Vehicle current, Vehicle preceding, Intersection intersection, Point2D center) {
+        
+        if (!trafficController.isVehicleAuthorizedToMove(current)) {
+            // Mantener posición actual
+            return;
+        }
+
         Point2D movementVector = calculateMovementVector(intersection, current, center);
         Point2D nextPosition = current.getPosition().add(movementVector);
 
