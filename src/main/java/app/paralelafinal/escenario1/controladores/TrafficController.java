@@ -135,9 +135,15 @@ public class TrafficController {
     }
 
     public boolean isVehicleAuthorizedToMove(Vehicle vehicle) {
-        // Emergencia: si el semáforo está en verde y es emergencia, puede avanzar
-        if (vehicle.isEmergency()) return true;
-        // Normal: solo el más antiguo puede avanzar
+        // Emergencia: si el semáforo está en verde y hay emergencia en la cola, todos pueden avanzar
+        Optional<Intersection> intersectionOpt = findIntersectionForVehicle(vehicle);
+        if (intersectionOpt.isPresent()) {
+            Intersection intersection = intersectionOpt.get();
+            if (intersection.hasGreenLight() && intersection.getVehicleQueue().stream().anyMatch(Vehicle::isEmergency)) {
+                return true;
+            }
+        }
+        
         Optional<Vehicle> oldest = findOldestVehicleInSystem();
         return oldest.isPresent() && oldest.get().equals(vehicle);
     }
