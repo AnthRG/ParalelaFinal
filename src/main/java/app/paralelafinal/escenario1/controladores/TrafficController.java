@@ -133,4 +133,12 @@ public class TrafficController {
     private void setAllLights(boolean isGreen) {
         intersections.forEach(i -> i.setGreenLight(isGreen));
     }
+
+    public boolean isVehicleAuthorizedToMove(Vehicle vehicle) {
+        // Emergencia: si el semáforo está en verde y es emergencia, puede avanzar
+        if (vehicle.isEmergency()) return true;
+        // Normal: solo el más antiguo puede avanzar
+        Optional<Vehicle> oldest = findOldestVehicleInSystem();
+        return oldest.isPresent() && oldest.get().equals(vehicle);
+    }
 }
