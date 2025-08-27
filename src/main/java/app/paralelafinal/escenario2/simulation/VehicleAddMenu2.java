@@ -30,8 +30,8 @@ public class VehicleAddMenu2 {
         grid.setVgap(5);
         grid.setPadding(new Insets(10, 10, 10, 10));
 
-        String[] lanes = {"East1", "East2", "West1", "West2"};
-        String[] directions = {"Straight", "Left", "Right", "U-turn"};
+        String[] lanes = {"East1", "East2", "West1", "West2"}; 
+        String[] directions = {"Straight", "Left", "Right", "U-turn", "U-turn 2nd"}; 
 
         for (int col = 0; col < lanes.length; col++) {
             String laneId = lanes[col];
@@ -52,7 +52,7 @@ public class VehicleAddMenu2 {
                 Button btn = new Button(direction);
                 btn.setMinWidth(90);
                 btn.setOnAction(e -> {
-                    String dir = direction.toLowerCase(); // "straight", "left", "right", "u-turn"
+                    String dir = direction.toLowerCase().replace(" ", "-"); // "straight", "left", "right", "u-turn", "u-turn-2nd"
                     String type = emergencyCheck.isSelected() ? "emergency" : "normal";
                     // Expects SimulationEngine2 to provide addVehicle(String type, String direction, String laneId)
                     simulationEngine.addVehicle(type, dir, laneId);
@@ -63,6 +63,15 @@ public class VehicleAddMenu2 {
             GridPane.setConstraints(buttonContainer, col, 1);
             grid.getChildren().add(buttonContainer);
         }
+
+        // Add debug button for U-turn vehicles
+        Button debugButton = new Button("Debug U-Turn");
+        debugButton.setOnAction(e -> {
+            simulationEngine.debugUTurnVehicles();
+        });
+        GridPane.setConstraints(debugButton, 0, 2);
+        GridPane.setColumnSpan(debugButton, lanes.length);
+        grid.getChildren().add(debugButton);
 
         Scene scene = new Scene(grid);
         window.setScene(scene);
