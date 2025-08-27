@@ -10,6 +10,7 @@ public class Intersection {
     private PriorityBlockingQueue<Vehicle> RightVQueue;
     private PriorityBlockingQueue<Vehicle> MidVQueue;
     private PriorityBlockingQueue<Vehicle> LeftVQueue;
+    private PriorityBlockingQueue<Vehicle> UTurnVQueue;
     private AtomicBoolean greenLight;
     private TrafficLight trafficLight;
 
@@ -25,6 +26,9 @@ public class Intersection {
         this.LeftVQueue = new PriorityBlockingQueue<>(10,
                 Comparator.comparingLong(Vehicle::getArrivalTime)
         );
+        this.UTurnVQueue = new PriorityBlockingQueue<>(10,
+                Comparator.comparingLong(Vehicle::getArrivalTime)
+        ); // New queue
         // Initialize a traffic light bound to this intersection's green flag to avoid NPEs
         this.trafficLight = new TrafficLight(id, greenLight);
     }
@@ -55,29 +59,37 @@ public class Intersection {
         LeftVQueue = leftVQueue;
     }
 
+    public PriorityBlockingQueue<Vehicle> getUTurnVQueue() {
+        return UTurnVQueue;
+    }
+
+    public void setUTurnVQueue(PriorityBlockingQueue<Vehicle> uTurnVQueue) {
+        UTurnVQueue = uTurnVQueue;
+    }
+
     public boolean isGreenLight() {
         return greenLight.get();
     }
 
-    // Encola un vehículo (se añade según prioridad)
-    public void addVehicle(Vehicle v) {
-        switch( v.getDirection()) {
+
+    public void addVehicleToQueue(Vehicle v, String queueType) {
+        switch(queueType.toLowerCase()) {
             case "right":
                 RightVQueue.add(v);
                 break;
             case "straight":
+            case "mid":
                 MidVQueue.add(v);
                 break;
             case "left":
                 LeftVQueue.add(v);
                 break;
             case "u-turn":
-                LeftVQueue.add(v);
+                UTurnVQueue.add(v);
                 break;
             default:
-                throw new IllegalArgumentException("Invalid direction: " + v.getDirection());
+                throw new IllegalArgumentException("Invalid queue type: " + queueType);
         }
-
     }
 
     // Devuelve sin quitar el vehículo que está al frente de la cola
@@ -122,6 +134,11 @@ public class Intersection {
             }
         }
         for (Vehicle v : MidVQueue) {
+            if (v.isEmergency()) {
+                return v;
+            }
+        }
+        for (Vehicle v : UTurnVQueue) {
             if (v.isEmergency()) {
                 return v;
             }

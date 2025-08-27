@@ -227,7 +227,7 @@ public class SimulationPane2 extends Application {
         layer.getChildren().removeIf(node -> "vehicle".equals(node.getUserData()));
 
         for (Intersection intersection : engine.getIntersections()) {
-            // Iterate each queue: mid, right, left
+            // FIXED: Include U-turn queue in rendering
             for (Vehicle v : intersection.getMidVQueue()) {
                 addVehicleNode(layer, v, intersection.getId());
             }
@@ -237,6 +237,9 @@ public class SimulationPane2 extends Application {
             for (Vehicle v : intersection.getLeftVQueue()) {
                 addVehicleNode(layer, v, intersection.getId());
             }
+            for (Vehicle v : intersection.getUTurnVQueue()) { 
+                addVehicleNode(layer, v, intersection.getId());
+            }
         }
     }
 
@@ -244,8 +247,24 @@ public class SimulationPane2 extends Application {
         Group sprite = createVehicleShape(v);
         sprite.setUserData("vehicle");
 
-        // Determine heading based on side: East* moves westbound (180 deg), West* moves eastbound (0 deg)
-        double angle = intersectionId.startsWith("East") ? 180 : 0;
+        // Determine heading based on side and direction
+        double angle;
+        if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+            // U-turn vehicles show different angle based on phase
+            if (v.getUTurnPhase() == 0) {
+                // Approaching: normal direction
+                angle = intersectionId.startsWith("East") ? 0 : 180;
+            } else if (v.getUTurnPhase() == 1) {
+                // Turning: perpendicular angle
+                angle = intersectionId.startsWith("East") ? 90 : -90;
+            } else {
+                // Exiting: opposite direction
+                angle = intersectionId.startsWith("East") ? 180 : 0;
+            }
+        } else {
+            // Normal vehicles
+            angle = intersectionId.startsWith("East") ? 0 : 180;
+        }
         sprite.setRotate(angle);
 
         // Position at vehicle's logical coordinates
@@ -281,10 +300,21 @@ public class SimulationPane2 extends Application {
 
             vehicleGroup.getChildren().addAll(body, light1, light2);
         } else {
-            Color[] carColors = {Color.BLUE, Color.GREEN, Color.PURPLE, Color.ORANGE, Color.BROWN, Color.NAVY};
-            body.setFill(carColors[Math.abs(v.getId().hashCode()) % carColors.length]);
-            body.setStroke(Color.BLACK);
-            body.setStrokeWidth(1);
+            // Special color for U-turn vehicles to make them visually distinct
+            if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+                body.setFill(Color.DARKVIOLET);
+                body.setStroke(Color.YELLOW);
+                body.setStrokeWidth(2);
+            } else if ("u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+                body.setFill(Color.CRIMSON);
+                body.setStroke(Color.LIME);
+                body.setStrokeWidth(2);
+            } else {
+                Color[] carColors = {Color.BLUE, Color.GREEN, Color.PURPLE, Color.ORANGE, Color.BROWN, Color.NAVY};
+                body.setFill(carColors[Math.abs(v.getId().hashCode()) % carColors.length]);
+                body.setStroke(Color.BLACK);
+                body.setStrokeWidth(1);
+            }
             vehicleGroup.getChildren().add(body);
         }
 
@@ -297,6 +327,21 @@ public class SimulationPane2 extends Application {
         backWindow.setFill(Color.LIGHTBLUE.deriveColor(0, 1, 1, 0.7));
         backWindow.setX(SimulationConfig.VEHICLE_LENGTH * 0.1);
         backWindow.setY(SimulationConfig.VEHICLE_WIDTH * 0.2);
+
+        // Add U-turn indicator if vehicle is making a U-turn
+        if ("u-turn".equalsIgnoreCase(v.getDirection())) {
+            Circle indicator = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.5, SimulationConfig.VEHICLE_WIDTH * 0.5, 5);
+            indicator.setFill(Color.YELLOW);
+            indicator.setStroke(Color.ORANGE);
+            indicator.setStrokeWidth(1);
+            vehicleGroup.getChildren().add(indicator);
+        } else if ("u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+            Circle indicator = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.5, SimulationConfig.VEHICLE_WIDTH * 0.5, 7);
+            indicator.setFill(Color.LIME);
+            indicator.setStroke(Color.RED);
+            indicator.setStrokeWidth(2);
+            vehicleGroup.getChildren().add(indicator);
+        }
 
         Circle wheel1 = new Circle(SimulationConfig.VEHICLE_LENGTH * 0.2, SimulationConfig.VEHICLE_WIDTH + 2, 3);
         wheel1.setFill(Color.BLACK);

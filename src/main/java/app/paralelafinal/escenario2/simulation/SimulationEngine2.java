@@ -1,5 +1,5 @@
 package app.paralelafinal.escenario2.simulation;
-
+import app.paralelafinal.config.LanePositionAdjustment;
 import app.paralelafinal.config.SimulationConfig;
 import app.paralelafinal.escenario2.entidades.Vehicle;
 import app.paralelafinal.escenario2.controladores.TrafficController;
@@ -23,6 +23,9 @@ public class SimulationEngine2 {
     private Timeline animationLoop;
     private Consumer<Void> uiUpdateCallback;
 
+    // Add field to track last added lane
+    private String lastAddedLaneId;
+
     public SimulationEngine2() {
         this.intersections = new ArrayList<>();
         List<Intersection> r = setupRIntersections();
@@ -35,95 +38,138 @@ public class SimulationEngine2 {
     private List<Intersection> setupLIntersections() {
         List<Intersection> i = new ArrayList<>();
         i.add(new Intersection("East1"));
-        i.add(new Intersection("East2"));
+        i.add(new Intersection("East2")); 
+        i.add(new Intersection("East3"));
         return i;
     }
 
     private List<Intersection> setupRIntersections() {
         List<Intersection> i = new ArrayList<>();
         i.add(new Intersection("West1"));
-        i.add(new Intersection("West2"));
+        i.add(new Intersection("West2")); 
+        i.add(new Intersection("West3"));
         return i;
     }
 
-    public void addVehicle(String type, String dir, String laneId) {
-        Platform.runLater(() -> {
-            String vehicleId = "V" + System.currentTimeMillis();
-            Intersection i = findIntersectionById(laneId);
-            if (i == null) return;
-            
-            // Get queue index BEFORE adding the vehicle (like SimulationEngine.java does)
-            int queueIndex = getQueueIndexForDirection(i, dir);
-            
-            Vehicle v = new Vehicle(vehicleId, type, dir, laneId, i.getId());
-            
-            // Calculate spawn position with queue-based offset
-            Point2D spawnPos = calculateSpawnPosition(laneId, dir, queueIndex);
-            v.setPosition(spawnPos);
-            
-            // Add vehicle to intersection after setting position
-            i.addVehicle(v);
-        });
-    }
-    
     private int getQueueIndexForDirection(Intersection intersection, String direction) {
-        // Return the current size of the appropriate queue
-        switch(direction) {
+        switch(direction.toLowerCase()) {
             case "right":
                 return intersection.getRightVQueue().size();
             case "left":
-                return intersection.getLeftVQueue().size();
+                // Count both left and u-turn vehicles in left queue
+                int leftCount = 0;
+                for (Vehicle v : intersection.getLeftVQueue()) {
+                    if ("left".equalsIgnoreCase(v.getDirection()) || "u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+                        leftCount++;
+                    }
+                }
+                return leftCount;
             case "straight":
-            default:
                 return intersection.getMidVQueue().size();
+            case "u-turn":
+            case "u-turn-2nd":
+                // U-turn vehicles are in the UTurnVQueue
+                int uTurnCount = 0;
+                for (Vehicle v : intersection.getUTurnVQueue()) {
+                    if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+                        uTurnCount++;
+                    }
+                }
+                return uTurnCount;
+            default:
+                throw new IllegalArgumentException("Invalid direction: " + direction);
         }
     }
     
+    public void addVehicle(String type, String dir, String laneId) {
+        lastAddedLaneId = laneId;
+       
+        String vehicleId = "V" + System.currentTimeMillis();
+        Intersection intersection = findIntersectionById(laneId);
+        if (intersection == null) return;
+
+        Vehicle vehicle = new Vehicle(vehicleId, type, dir, laneId, intersection.getId());
+
+        int queueIndex = getQueueIndexForDirection(intersection, dir);
+        Point2D spawnPos = calculateSpawnPosition(laneId, dir, queueIndex);
+        vehicle.setPosition(spawnPos);
+
+        // Only queue the final UI update
+        Platform.runLater(() -> {
+            switch (dir.toLowerCase()) {
+                case "left":
+                    intersection.getLeftVQueue().add(vehicle);
+                    break;
+                case "right":
+                    intersection.getRightVQueue().add(vehicle);
+                    break;
+                case "straight":
+                    intersection.getMidVQueue().add(vehicle);
+                    break;
+                case "u-turn":
+                case "u-turn-2nd":
+                    // U-turn vehicles go in the UTurnVQueue, not LeftVQueue
+                    intersection.getUTurnVQueue().add(vehicle);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid direction: " + dir);
+            }
+        });
+    }
+
     private Point2D calculateSpawnPosition(String laneId, String direction, int queueIndex) {
-        // Calculate horizontal road positions
-        double horizRoad1Y = (SimulationConfig.SCENE_HEIGHT - 2 * SimulationConfig.ROAD_WIDTH * 1.875) / 3 
-                           + SimulationConfig.ROAD_WIDTH * 1.875 / 2;
-        double horizRoad2Y = horizRoad1Y + SimulationConfig.ROAD_WIDTH * 1.875 
-                           + (SimulationConfig.SCENE_HEIGHT - 2 * SimulationConfig.ROAD_WIDTH * 1.875) / 3;
-        
-        // Calculate Y position based on lane and direction
-        double laneWidth = SimulationConfig.ROAD_WIDTH * 1.875 / 6; // 6 lanes total
+        double horizRoadY = (SimulationConfig.SCENE_HEIGHT - SimulationConfig.ROAD_WIDTH) / 2;
+        double laneWidth = SimulationConfig.ROAD_WIDTH / 3;
         double yPos;
-        
-        if (laneId.startsWith("East")) {
-            // Westbound traffic - upper lanes
-            double roadCenterY = laneId.equals("East1") ? horizRoad1Y : horizRoad2Y;
-            if (direction.equals("left")) {
-                yPos = roadCenterY - laneWidth * 2.5;
-            } else if (direction.equals("right")) {
-                yPos = roadCenterY - laneWidth * 0.5;
-            } else {
-                yPos = roadCenterY - laneWidth * 1.5;
-            }
-        } else {
-            // Eastbound traffic - lower lanes
-            double roadCenterY = laneId.equals("West1") ? horizRoad1Y : horizRoad2Y;
-            if (direction.equals("left")) {
-                yPos = roadCenterY + laneWidth * 0.5;
-            } else if (direction.equals("right")) {
-                yPos = roadCenterY + laneWidth * 2.5;
-            } else {
-                yPos = roadCenterY + laneWidth * 1.5;
-            }
+
+       
+        switch (direction.toLowerCase()) {
+            case "left":
+                if (laneId.startsWith("East")) {
+                   
+                    yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.EAST_LEFT_OFFSET;
+                } else {
+                    yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.WEST_LEFT_OFFSET;
+                }
+                break;
+            case "right":
+                if (laneId.startsWith("East")) {
+                    
+                    yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.EAST_RIGHT_OFFSET;
+                } else {
+                    yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.WEST_RIGHT_OFFSET;
+                }
+                break;
+            case "straight":
+                yPos = horizRoadY + laneWidth * 1.5 + (laneId.startsWith("East") 
+                    ? LanePositionAdjustment.EAST_STRAIGHT_OFFSET 
+                    : LanePositionAdjustment.WEST_STRAIGHT_OFFSET);
+                break;
+            case "u-turn":
+                // U-turn vehicles use the left lane position
+                if (laneId.startsWith("East")) {
+                    yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.EAST_U_TURN_OFFSET;
+                } else {
+                    yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.WEST_U_TURN_OFFSET;
+                }
+                break;
+            case "u-turn-2nd":
+                // Second U-turn vehicles use slightly different position
+                if (laneId.startsWith("East")) {
+                    yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.EAST_U_TURN_2ND_OFFSET;
+                } else {
+                    yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.WEST_U_TURN_2ND_OFFSET;
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid direction: " + direction);
         }
-        
-        // Calculate X position with queue-based offset
-        double vehicleSpacing = SimulationConfig.VEHICLE_LENGTH + 25; // Increased spacing
-        double xPos;
-        
-        if (laneId.startsWith("East")) {
-            // Westbound: spawn from right, offset further right for each queued vehicle
-            xPos = SimulationConfig.SCENE_WIDTH - 50 + (queueIndex * vehicleSpacing);
-        } else {
-            // Eastbound: spawn from left, offset further left for each queued vehicle
-            xPos = 50 - (queueIndex * vehicleSpacing);
-        }
-        
+
+        double vehicleSpacing = SimulationConfig.VEHICLE_LENGTH + 25;
+        double xPos = laneId.startsWith("East")
+            ? SimulationConfig.SCENE_WIDTH - 50 + (queueIndex * vehicleSpacing) 
+            : 50 - (queueIndex * vehicleSpacing); 
+
         return new Point2D(xPos, yPos);
     }
 
@@ -181,5 +227,22 @@ public class SimulationEngine2 {
 
     public List<Intersection> getIntersections() {
         return intersections;
+    }
+
+    // Debug method to print U-turn vehicle status
+    public void debugUTurnVehicles() {
+        System.out.println("=== U-TURN DEBUG INFO ===");
+        for (Intersection intersection : intersections) {
+            System.out.println("Intersection: " + intersection.getId());
+            System.out.println("  UTurn Queue size: " + intersection.getUTurnVQueue().size());
+            for (Vehicle v : intersection.getUTurnVQueue()) {
+                System.out.println("    Vehicle " + v.getId() + 
+                    " - Direction: " + v.getDirection() + 
+                    " - Phase: " + v.getUTurnPhase() + 
+                    " - Position: " + (v.getPosition() != null ? 
+                        "(" + v.getPosition().getX() + ", " + v.getPosition().getY() + ")" : "null"));
+            }
+        }
+        System.out.println("========================");
     }
 }

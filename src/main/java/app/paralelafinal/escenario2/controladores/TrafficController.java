@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,8 +27,8 @@ import java.util.stream.Stream;
  */
 public class TrafficController {
 
-    private final List<Intersection> RightIntersections; // West1, West2 (moving eastbound)
-    private final List<Intersection> LeftIntersections;  // East1, East2 (moving westbound)
+    private final List<Intersection> RightIntersections; 
+    private final List<Intersection> LeftIntersections;  
     private final List<Intersection> Intersections;
     private final ScheduledExecutorService scheduler;
     private final ReentrantLock controlLock = new ReentrantLock();
@@ -109,28 +110,27 @@ public class TrafficController {
         }
     }
 
+    // Updated emergency vehicle detection
     private Vehicle HasEmergencyVehicle() {
         Vehicle candidate = null;
         for (Intersection intersection : Intersections) {
-            for (Vehicle v : intersection.getRightVQueue()) {
-                if (v.isEmergency() && (candidate == null || v.getArrivalTime() < candidate.getArrivalTime())) {
-                    candidate = v;
-                }
-            }
-            for (Vehicle v : intersection.getMidVQueue()) {
-                if (v.isEmergency() && (candidate == null || v.getArrivalTime() < candidate.getArrivalTime())) {
-                    candidate = v;
-                }
-            }
-            for (Vehicle v : intersection.getLeftVQueue()) {
-                if (v.isEmergency() && (candidate == null || v.getArrivalTime() < candidate.getArrivalTime())) {
-                    candidate = v;
+            List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
+                intersection.getRightVQueue(),
+                intersection.getMidVQueue(),
+                intersection.getLeftVQueue(),
+                intersection.getUTurnVQueue()
+            );
+            
+            for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
+                for (Vehicle v : queue) {
+                    if (v.isEmergency() && (candidate == null || v.getArrivalTime() < candidate.getArrivalTime())) {
+                        candidate = v;
+                    }
                 }
             }
         }
         return candidate;
     }
-
 
     /**
      * Detiene el planificador de control de tráfico.
@@ -153,22 +153,29 @@ public class TrafficController {
 
     // Core stepping logic: move the head vehicle of a green-light intersection toward the next intersection
     private void stepVehicles() {
+        // Create local copies to minimize lock time
+        List<Intersection> leftCopy;
+        List<Intersection> rightCopy;
+        
         controlLock.lock();
         try {
-            // Process westbound lanes (East1 -> East2)
-            for (int idx = 0; idx < LeftIntersections.size(); idx++) {
-                Intersection current = LeftIntersections.get(idx);
-                Intersection next = (idx + 1 < LeftIntersections.size()) ? LeftIntersections.get(idx + 1) : null;
-                processLane(current, next, true);
-            }
-            // Process eastbound lanes (West1 -> West2)
-            for (int idx = 0; idx < RightIntersections.size(); idx++) {
-                Intersection current = RightIntersections.get(idx);
-                Intersection next = (idx + 1 < RightIntersections.size()) ? RightIntersections.get(idx + 1) : null;
-                processLane(current, next, false);
-            }
+            leftCopy = new ArrayList<>(LeftIntersections);
+            rightCopy = new ArrayList<>(RightIntersections);
         } finally {
             controlLock.unlock();
+        }
+        
+        // Process without holding the lock
+        for (int idx = 0; idx < leftCopy.size(); idx++) {
+            Intersection current = leftCopy.get(idx);
+            Intersection next = (idx + 1 < leftCopy.size()) ? leftCopy.get(idx + 1) : null;
+            processLane(current, next, true);
+        }
+        
+        for (int idx = 0; idx < rightCopy.size(); idx++) {
+            Intersection current = rightCopy.get(idx);
+            Intersection next = (idx + 1 < rightCopy.size()) ? rightCopy.get(idx + 1) : null;
+            processLane(current, next, false);
         }
     }
 
@@ -177,58 +184,169 @@ public class TrafficController {
         TrafficLight light = current.getTrafficLight();
         if (light == null || !light.isGreen()) return;
 
-        // Process all three lanes simultaneously for smoother traffic flow
-        processVehicleInLane(current.getMidVQueue().peek(), "straight", current, next, westbound);
-        processVehicleInLane(current.getRightVQueue().peek(), "right", current, next, westbound);
-        processVehicleInLane(current.getLeftVQueue().peek(), "left", current, next, westbound);
-    }
-    
-    private void processVehicleInLane(Vehicle v, String sourceLane, Intersection current, Intersection next, boolean westbound) {
-        if (v == null) return;
+        // Process all queues
+        processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound);
+        processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound);
+        processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound);
         
-        // Check for collision with vehicles ahead in the same intersection
-        if (!canMoveWithoutCollision(v, current, westbound)) {
-            return; // Don't move if there's a vehicle too close ahead
+        // Process U-turn vehicles separately from their dedicated queue
+        processUTurnVehicles(current, westbound);
+    }
+
+    private void processAllVehiclesInQueue(PriorityBlockingQueue<Vehicle> queue, String sourceLane, 
+                                     Intersection current, Intersection next, boolean westbound) {
+        if (queue.isEmpty()) return;
+        
+        // Process only a limited number of vehicles per cycle to prevent freezing
+        int maxVehiclesPerCycle = 3;
+        int processed = 0;
+        
+        // Use iterator to avoid copying the entire queue
+        for (Vehicle v : queue) {
+            if (v == null || processed >= maxVehiclesPerCycle) break;
+            
+            if (!canMoveWithoutCollision(v, current, westbound)) {
+                break; // Stop if this vehicle can't move
+            }
+            
+            processVehicleMovement(v, sourceLane, current, next, westbound, queue);
+            processed++;
         }
+    }
 
-        // Move position toward next intersection or offscreen
+    private void processVehicleMovement(Vehicle v, String sourceLane, Intersection current, 
+                                    Intersection next, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
+    
         Point2D pos = v.getPosition();
-        double speed = 5.0; // Increased speed from 2.5 to 5.0 px per tick
+        double speed = 5.0;
         double dx = westbound ? -speed : speed;
-        double dy = 0;
-        v.setPosition(new Point2D(pos.getX() + dx, pos.getY() + dy));
+        v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
 
-        // Determine the x position for the next intersection's vertical road center
+       
         if (next != null) {
             double targetX = intersectionX(next.getId());
             boolean arrived = westbound ? v.getPosition().getX() <= targetX : v.getPosition().getX() >= targetX;
             if (arrived) {
-                // dequeue from current
-                switch (sourceLane) {
-                    case "straight" -> current.getMidVQueue().poll();
-                    case "right" -> current.getRightVQueue().poll();
-                    case "left" -> current.getLeftVQueue().poll();
-                }
-                // snap position to target line and enqueue into next
+                queue.remove(v); 
                 v.setPosition(new Point2D(targetX, v.getPosition().getY()));
-                next.addVehicle(v);
+
+               
+                next.addVehicleToQueue(v, sourceLane); 
             }
         } else {
-            // No next intersection: once off the canvas, remove from current
+            
             if (westbound && v.getPosition().getX() < -20) {
-                switch (sourceLane) {
-                    case "straight" -> current.getMidVQueue().poll();
-                    case "right" -> current.getRightVQueue().poll();
-                    case "left" -> current.getLeftVQueue().poll();
-                }
+                queue.remove(v);
             } else if (!westbound && v.getPosition().getX() > SimulationConfig.SCENE_WIDTH + 20) {
-                switch (sourceLane) {
-                    case "straight" -> current.getMidVQueue().poll();
-                    case "right" -> current.getRightVQueue().poll();
-                    case "left" -> current.getLeftVQueue().poll();
+                queue.remove(v);
+            }
+        }
+    }
+    
+    private void processUTurnVehicles(Intersection current, boolean westbound) {
+        // U-turns now come from the dedicated UTurnVQueue
+        PriorityBlockingQueue<Vehicle> uTurnQueue = current.getUTurnVQueue();
+        
+        if (uTurnQueue.isEmpty()) return;
+        
+        List<Vehicle> uTurnVehicles = new ArrayList<>();
+        for (Vehicle v : uTurnQueue) {
+            if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+                uTurnVehicles.add(v);
+            }
+        }
+        
+        for (Vehicle v : uTurnVehicles) {
+            if (!canMoveWithoutCollision(v, current, westbound)) {
+                continue;
+            }
+            
+            processUTurnMovement(v, current, westbound, uTurnQueue);
+        }
+    }
+    
+    private void processUTurnMovement(Vehicle v, Intersection current, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
+        Point2D pos = v.getPosition();
+        double speed = 3.0; // Slower speed for U-turn maneuver
+        
+        // Get intersection center X position
+        double[] centers = verticalCenters();
+        double intersectionCenterX = current.getId().startsWith("East") ? centers[1] : centers[0];
+        
+        switch (v.getUTurnPhase()) {
+            case 0: // Approaching intersection center
+                double dx = westbound ? -speed : speed;
+                v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+                
+                // Check if reached intersection center for turning
+                boolean reachedCenter = Math.abs(pos.getX() - intersectionCenterX) < 15;
+                if (reachedCenter) {
+                    v.setUTurnPhase(1);
+                    System.out.println("Vehicle " + v.getId() + " starting U-turn at phase 1");
+                }
+                break;
+                
+            case 1: // Making the U-turn (turning around)
+                // Calculate target lane Y position
+                double horizRoadY = (SimulationConfig.SCENE_HEIGHT - SimulationConfig.ROAD_WIDTH) / 2;
+                double laneWidth = SimulationConfig.ROAD_WIDTH / 3;
+                double targetY;
+                
+                if (westbound) {
+                    // West vehicles: move from south lane (bottom) to north lane (top)
+                    targetY = horizRoadY + laneWidth * 0.5; // Top lane for eastbound traffic
+                } else {
+                    // East vehicles: move from north lane (top) to south lane (bottom)  
+                    targetY = horizRoadY + laneWidth * 2.5; // Bottom lane for westbound traffic
+                }
+                
+                // Move toward target Y position
+                double dy = targetY - pos.getY();
+                if (Math.abs(dy) > speed) {
+                    double moveY = dy > 0 ? speed : -speed;
+                    v.setPosition(new Point2D(pos.getX(), pos.getY() + moveY));
+                } else {
+                    // Reached target lane, complete the turn
+                    v.setPosition(new Point2D(pos.getX(), targetY));
+                    v.setUTurnPhase(2);
+                    System.out.println("Vehicle " + v.getId() + " completed U-turn, entering phase 2");
+                }
+                break;
+                
+            case 2: // Exiting in opposite direction
+                // Move in opposite direction
+                double exitDx = westbound ? speed : -speed; // Opposite direction
+                v.setPosition(new Point2D(pos.getX() + exitDx, pos.getY()));
+                
+                // Check if far enough from intersection to remove from queue
+                boolean farEnough = Math.abs(pos.getX() - intersectionCenterX) > 50;
+                if (farEnough) {
+                    queue.remove(v);
+                    v.setUTurnPhase(0); // Reset for potential future use
+                    System.out.println("Vehicle " + v.getId() + " completed U-turn exit");
+                }
+                break;
+        }
+    }
+    
+    private Intersection findOppositeIntersection(Intersection current) {
+        String currentId = current.getId();
+        if (currentId.startsWith("East")) {
+            // Find West intersection
+            for (Intersection i : Intersections) {
+                if (i.getId().startsWith("West")) {
+                    return i;
+                }
+            }
+        } else if (currentId.startsWith("West")) {
+            // Find East intersection
+            for (Intersection i : Intersections) {
+                if (i.getId().startsWith("East")) {
+                    return i;
                 }
             }
         }
+        return null;
     }
 
     // Compute x centers of the two vertical roads used as intersection reference lines
@@ -247,39 +365,31 @@ public class TrafficController {
         double x1 = centers[0];
         double x2 = centers[1];
         if (intersectionId.equalsIgnoreCase("East1")) return x2; // easternmost
-        if (intersectionId.equalsIgnoreCase("East2")) return x1; // western
-        if (intersectionId.equalsIgnoreCase("West1")) return x1; // westernmost
-        if (intersectionId.equalsIgnoreCase("West2")) return x2; // eastern
-        // Default fallback
-        return (x1 + x2) / 2.0;
+        if (intersectionId.equalsIgnoreCase("West2")) return x1; // westernmost
+        return (x1 + x2) / 2.0; // Default fallback
     }
 
     // Check if vehicle can move without colliding with vehicles ahead
     private boolean canMoveWithoutCollision(Vehicle movingVehicle, Intersection intersection, boolean westbound) {
         if (movingVehicle == null || movingVehicle.getPosition() == null) return false;
         
-        double minSafeDistance = SimulationConfig.VEHICLE_LENGTH + 15; // Minimum safe following distance
+        double minSafeDistance = SimulationConfig.VEHICLE_LENGTH + 15;
         Point2D movingPos = movingVehicle.getPosition();
         
-        // Check all vehicles in all queues of the same intersection
-        for (Vehicle other : intersection.getMidVQueue()) {
-            if (other != movingVehicle && other.getPosition() != null) {
-                if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
-                    return false;
-                }
-            }
-        }
-        for (Vehicle other : intersection.getRightVQueue()) {
-            if (other != movingVehicle && other.getPosition() != null) {
-                if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
-                    return false;
-                }
-            }
-        }
-        for (Vehicle other : intersection.getLeftVQueue()) {
-            if (other != movingVehicle && other.getPosition() != null) {
-                if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
-                    return false;
+        // Check against all vehicles in all queues including UTurn
+        List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
+            intersection.getMidVQueue(),
+            intersection.getRightVQueue(), 
+            intersection.getLeftVQueue(),
+            intersection.getUTurnVQueue()
+        );
+        
+        for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
+            for (Vehicle other : queue) {
+                if (other != movingVehicle && other.getPosition() != null) {
+                    if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
+                        return false;
+                    }
                 }
             }
         }
