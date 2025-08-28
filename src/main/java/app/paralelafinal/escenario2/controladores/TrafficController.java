@@ -1,3 +1,4 @@
+
 package app.paralelafinal.escenario2.controladores;
 
 import app.paralelafinal.escenario2.entidades.Intersection;
@@ -166,16 +167,20 @@ public class TrafficController {
         }
         
         // Process without holding the lock
+        // LeftIntersections are East intersections, moving westbound (left)
         for (int idx = 0; idx < leftCopy.size(); idx++) {
             Intersection current = leftCopy.get(idx);
             Intersection next = (idx + 1 < leftCopy.size()) ? leftCopy.get(idx + 1) : null;
-            processLane(current, next, true);
+            boolean isWestbound = current.getId().startsWith("East"); // East vehicles move west
+            processLane(current, next, isWestbound);
         }
         
+        // RightIntersections are West intersections, moving eastbound (right)
         for (int idx = 0; idx < rightCopy.size(); idx++) {
             Intersection current = rightCopy.get(idx);
             Intersection next = (idx + 1 < rightCopy.size()) ? rightCopy.get(idx + 1) : null;
-            processLane(current, next, false);
+            boolean isWestbound = current.getId().startsWith("East"); // East vehicles move west
+            processLane(current, next, isWestbound);
         }
     }
 
@@ -209,7 +214,13 @@ public class TrafficController {
                 break; // Stop if this vehicle can't move
             }
             
-            processVehicleMovement(v, sourceLane, current, next, westbound, queue);
+            // For vehicles that completed U-turn, ensure they stay in left lane
+            String actualLane = sourceLane;
+            if ("left".equalsIgnoreCase(sourceLane) && "left".equalsIgnoreCase(v.getDirection())) {
+                actualLane = "left"; // Ensure left lane vehicles stay in left lane
+            }
+            
+            processVehicleMovement(v, actualLane, current, next, westbound, queue);
             processed++;
         }
     }
@@ -261,8 +272,86 @@ public class TrafficController {
                 continue;
             }
             
-            processUTurnMovement(v, current, westbound, uTurnQueue);
+            // For u-turn-2nd vehicles that haven't been marked as "advancing"
+            if ("u-turn-2nd".equalsIgnoreCase(v.getDirection()) && v.getUTurnPhase() == 0 && 
+                !v.getId().contains("_advancing")) {
+                // Find next intersection in the same direction
+                Intersection nextIntersection = findNextIntersection(current, westbound);
+                if (nextIntersection != null) {
+                    // Mark vehicle as advancing to prevent re-processing
+                    v.setId(v.getId() + "_advancing");
+                    processUTurn2ndAdvance(v, current, nextIntersection, westbound, uTurnQueue);
+                } else {
+                    // If no next intersection, treat as regular u-turn
+                    processUTurnMovement(v, current, westbound, uTurnQueue);
+                }
+            } else if (!"u-turn-2nd".equalsIgnoreCase(v.getDirection()) || 
+                      v.getId().contains("_advancing")) {
+                // Process regular u-turn or u-turn-2nd that has arrived at target
+                processUTurnMovement(v, current, westbound, uTurnQueue);
+            }
         }
+    }
+    
+    private void processUTurn2ndAdvance(Vehicle v, Intersection current, Intersection next, 
+                                        boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
+        Point2D pos = v.getPosition();
+        double speed = 5.0; // Normal speed to reach next intersection
+        double dx = westbound ? -speed : speed;
+        
+        // Move toward next intersection
+        v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+        
+        // Check if reached next intersection
+        double targetX = intersectionX(next.getId());
+        boolean arrived = westbound ? v.getPosition().getX() <= targetX : v.getPosition().getX() >= targetX;
+        
+        System.out.println("Vehicle " + v.getId() + " (u-turn-2nd) moving from " + current.getId() + 
+                         " to " + next.getId() + " at position (" + v.getPosition().getX() + 
+                         ", " + v.getPosition().getY() + ") target X: " + targetX);
+        
+        if (arrived) {
+            // Remove from current queue
+            queue.remove(v);
+            
+            // Update vehicle's intersection
+            v.setInIntersection(next.getId());
+            v.setPosition(new Point2D(targetX, pos.getY()));
+            
+            // Add to next intersection's U-turn queue to perform the turn there
+            next.getUTurnVQueue().add(v);
+            
+            System.out.println("Vehicle " + v.getId() + " (u-turn-2nd) arrived at " + 
+                             next.getId() + " for U-turn execution at position (" + 
+                             targetX + ", " + pos.getY() + ")");
+        }
+    }
+    
+    private Intersection findNextIntersection(Intersection current, boolean westbound) {
+        String currentId = current.getId();
+        
+        if (westbound) {
+            // East vehicles moving west
+            if (currentId.equals("East1")) return findIntersectionById("East2");
+            if (currentId.equals("East2")) return findIntersectionById("East3");
+            // East3 has no next intersection westbound
+        } else {
+            // West vehicles moving east  
+            if (currentId.equals("West1")) return findIntersectionById("West2");
+            if (currentId.equals("West2")) return findIntersectionById("West3");
+            // West3 has no next intersection eastbound
+        }
+        
+        return null;
+    }
+    
+    private Intersection findIntersectionById(String id) {
+        for (Intersection i : Intersections) {
+            if (i.getId().equals(id)) {
+                return i;
+            }
+        }
+        return null;
     }
     
     private void processUTurnMovement(Vehicle v, Intersection current, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
@@ -271,33 +360,71 @@ public class TrafficController {
         
         // Get intersection center X position
         double[] centers = verticalCenters();
-        double intersectionCenterX = current.getId().startsWith("East") ? centers[1] : centers[0];
+        double intersectionCenterX;
+        
+        // For u-turn-2nd vehicles, use the actual intersection position
+        if (v.getId().contains("_advancing")) {
+            // This is a u-turn-2nd that should turn at its current intersection
+            intersectionCenterX = intersectionX(current.getId());
+            // Debug removed - was printing too often
+        } else {
+            // Regular u-turn uses the vertical center
+            intersectionCenterX = current.getId().startsWith("East") ? centers[1] : centers[0];
+        }
         
         switch (v.getUTurnPhase()) {
             case 0: // Approaching intersection center
                 double dx = westbound ? -speed : speed;
-                v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
                 
-                // Check if reached intersection center for turning
-                boolean reachedCenter = Math.abs(pos.getX() - intersectionCenterX) < 15;
-                if (reachedCenter) {
-                    v.setUTurnPhase(1);
-                    System.out.println("Vehicle " + v.getId() + " starting U-turn at phase 1");
+                // For u-turn-2nd vehicles, check if we need to continue to extended position
+                if (v.getId().contains("_advancing")) {
+                    double extraDistance = 400; // Distance needed for proper u-turn-2nd positioning
+                    double targetX = westbound ? intersectionCenterX - extraDistance : intersectionCenterX + extraDistance;
+                    
+                    // Move gradually toward the extended position
+                    double distanceToTarget = Math.abs(pos.getX() - targetX);
+                    if (distanceToTarget > 5) {
+                        // Continue moving toward the extended position
+                        v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+                    } else {
+                        // Reached extended position, start turning
+                        v.setPosition(new Point2D(targetX, pos.getY()));
+                        v.setUTurnPhase(1);
+                        System.out.println("Vehicle " + v.getId() + " starting U-turn at extended position " + 
+                                         current.getId() + " at X: " + targetX);
+                    }
+                } else {
+                    // Regular u-turn - move to intersection center
+                    v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+                    
+                    // Check if reached intersection center for turning
+                    boolean reachedCenter = Math.abs(pos.getX() - intersectionCenterX) < 15;
+                    
+                    if (reachedCenter) {
+                        v.setUTurnPhase(1);
+                        System.out.println("Vehicle " + v.getId() + " starting U-turn at intersection " + 
+                                         current.getId() + " at X: " + v.getPosition().getX());
+                    }
                 }
                 break;
                 
             case 1: // Making the U-turn (turning around)
-                // Calculate target lane Y position
+                // Calculate target lane Y position - LEFT LANE of opposite direction
                 double horizRoadY = (SimulationConfig.SCENE_HEIGHT - SimulationConfig.ROAD_WIDTH) / 2;
                 double laneWidth = SimulationConfig.ROAD_WIDTH / 3;
                 double targetY;
                 
-                if (westbound) {
-                    // West vehicles: move from south lane (bottom) to north lane (top)
-                    targetY = horizRoadY + laneWidth * 0.5; // Top lane for eastbound traffic
+                if (current.getId().startsWith("East")) {
+                    // East vehicles turning to West: enter West's LEFT lane (top lane for West)
+                    targetY = horizRoadY + laneWidth * 0.5 + app.paralelafinal.config.LanePositionAdjustment.WEST_LEFT_OFFSET;
                 } else {
-                    // East vehicles: move from north lane (top) to south lane (bottom)  
-                    targetY = horizRoadY + laneWidth * 2.5; // Bottom lane for westbound traffic
+                    // West vehicles turning to East: enter East's LEFT lane (bottom lane for East)
+                    targetY = horizRoadY + laneWidth * 2.5 + app.paralelafinal.config.LanePositionAdjustment.EAST_LEFT_OFFSET;
+                    
+                    // For West1, adjust 2 pixels to the left (which means moving down when horizontal)
+                    if (current.getId().equals("West1") && !v.getId().contains("_advancing")) {
+                        targetY = targetY + 2; // Move 2 pixels down (appears as left when vehicle is horizontal pointing south)
+                    }
                 }
                 
                 // Move toward target Y position
@@ -306,24 +433,34 @@ public class TrafficController {
                     double moveY = dy > 0 ? speed : -speed;
                     v.setPosition(new Point2D(pos.getX(), pos.getY() + moveY));
                 } else {
-                    // Reached target lane, complete the turn
-                    v.setPosition(new Point2D(pos.getX(), targetY));
+                    // Reached target lane, complete the turn and transfer to opposite intersection
                     v.setUTurnPhase(2);
-                    System.out.println("Vehicle " + v.getId() + " completed U-turn, entering phase 2");
-                }
-                break;
-                
-            case 2: // Exiting in opposite direction
-                // Move in opposite direction
-                double exitDx = westbound ? speed : -speed; // Opposite direction
-                v.setPosition(new Point2D(pos.getX() + exitDx, pos.getY()));
-                
-                // Check if far enough from intersection to remove from queue
-                boolean farEnough = Math.abs(pos.getX() - intersectionCenterX) > 50;
-                if (farEnough) {
-                    queue.remove(v);
-                    v.setUTurnPhase(0); // Reset for potential future use
-                    System.out.println("Vehicle " + v.getId() + " completed U-turn exit");
+                    
+                    // Transfer to opposite intersection's LEFT queue
+                    Intersection oppositeIntersection = findOppositeIntersection(current);
+                    if (oppositeIntersection != null) {
+                        // Remove from current U-turn queue
+                        queue.remove(v);
+                        
+                        // Update vehicle properties for the new direction - keep as same vehicle
+                        v.setDirection("left");
+                        v.setGoal(oppositeIntersection.getId());
+                        v.setInIntersection(oppositeIntersection.getId());
+                        v.setUTurnPhase(0); // Reset phase
+                        
+                        // Keep current X position but update Y to the correct left lane
+                        v.setPosition(new Point2D(pos.getX(), targetY));
+                        
+                        // Add the SAME vehicle to the left queue of the opposite intersection
+                        oppositeIntersection.getLeftVQueue().add(v);
+                        
+                        System.out.println("Vehicle " + v.getId() + " completed U-turn and transferred to " + 
+                                         oppositeIntersection.getId() + " left queue at position (" + 
+                                         pos.getX() + ", " + targetY + ")");
+                        System.out.println("Vehicle direction is now: " + v.getDirection());
+                        System.out.println("Left queue size: " + oppositeIntersection.getLeftVQueue().size());
+                        System.out.println("Mid queue size: " + oppositeIntersection.getMidVQueue().size());
+                    }
                 }
                 break;
         }
@@ -331,21 +468,26 @@ public class TrafficController {
     
     private Intersection findOppositeIntersection(Intersection current) {
         String currentId = current.getId();
+        String targetId = null;
+        
         if (currentId.startsWith("East")) {
-            // Find West intersection
-            for (Intersection i : Intersections) {
-                if (i.getId().startsWith("West")) {
-                    return i;
-                }
-            }
+            // Extract the number and map to corresponding West intersection
+            String number = currentId.substring(4); // Get the number part (1, 2, 3)
+            targetId = "West" + number;
         } else if (currentId.startsWith("West")) {
-            // Find East intersection
+            // Extract the number and map to corresponding East intersection
+            String number = currentId.substring(4); // Get the number part (1, 2, 3)
+            targetId = "East" + number;
+        }
+        
+        if (targetId != null) {
             for (Intersection i : Intersections) {
-                if (i.getId().startsWith("East")) {
+                if (i.getId().equals(targetId)) {
                     return i;
                 }
             }
         }
+        
         return null;
     }
 
@@ -362,10 +504,18 @@ public class TrafficController {
     // Map logical intersection IDs to the corresponding vertical road center x
     private double intersectionX(String intersectionId) {
         double[] centers = verticalCenters();
-        double x1 = centers[0];
-        double x2 = centers[1];
-        if (intersectionId.equalsIgnoreCase("East1")) return x2; // easternmost
-        if (intersectionId.equalsIgnoreCase("West2")) return x1; // westernmost
+        double x1 = centers[0]; // First vertical road center
+        double x2 = centers[1]; // Second vertical road center
+        
+        // Map each intersection to its corresponding vertical road
+        if (intersectionId.equalsIgnoreCase("East1")) return x2; // East1 at second vertical road
+        if (intersectionId.equalsIgnoreCase("East2")) return x1; // East2 at first vertical road
+        if (intersectionId.equalsIgnoreCase("East3")) return x1 - 200; // East3 further west
+        
+        if (intersectionId.equalsIgnoreCase("West1")) return x1; // West1 at first vertical road
+        if (intersectionId.equalsIgnoreCase("West2")) return x2; // West2 at second vertical road
+        if (intersectionId.equalsIgnoreCase("West3")) return x2 + 200; // West3 further east
+        
         return (x1 + x2) / 2.0; // Default fallback
     }
 

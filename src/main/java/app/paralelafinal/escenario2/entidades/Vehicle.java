@@ -8,6 +8,7 @@ public class Vehicle {
     private String id;
     private String type; // "normal" or "emergency"
     private String direction; // "right", "straight", "left", "u-turn"
+    private String originalDirection; // Store original direction for color consistency
     private String goal; // ID of the intersection of the goal
     private String inIntersection;
     private long arrivalTime;
@@ -55,6 +56,7 @@ public class Vehicle {
         this.id = id;
         this.type = type;
         this.direction = direction;
+        this.originalDirection = direction; // Store original direction
         this.goal = goal;
         this.inIntersection = inIntersection;
         this.arrivalTime = System.nanoTime();
@@ -125,5 +127,13 @@ public class Vehicle {
 
     public boolean isEmergency() {
         return this.type.equalsIgnoreCase("emergency");
+    }
+    
+    public String getOriginalDirection() {
+        return originalDirection;
+    }
+    
+    public void setOriginalDirection(String originalDirection) {
+        this.originalDirection = originalDirection;
     }
 }
