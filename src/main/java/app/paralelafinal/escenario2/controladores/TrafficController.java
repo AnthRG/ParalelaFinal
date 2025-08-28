@@ -214,13 +214,21 @@ public class TrafficController {
                 break; // Stop if this vehicle can't move
             }
             
-            // For vehicles that completed U-turn, ensure they stay in left lane
-            String actualLane = sourceLane;
-            if ("left".equalsIgnoreCase(sourceLane) && "left".equalsIgnoreCase(v.getDirection())) {
-                actualLane = "left"; // Ensure left lane vehicles stay in left lane
-            }
+            String direction = v.getDirection().toLowerCase();
             
-            processVehicleMovement(v, actualLane, current, next, westbound, queue);
+            // Check if this is a special turn movement
+            if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
+                direction.startsWith("left-south") || direction.startsWith("right-north")) {
+                processSpecialTurnVehicle(v, current, westbound, queue);
+            } else {
+                // For vehicles that completed U-turn, ensure they stay in left lane
+                String actualLane = sourceLane;
+                if ("left".equalsIgnoreCase(sourceLane) && "left".equalsIgnoreCase(v.getDirection())) {
+                    actualLane = "left"; // Ensure left lane vehicles stay in left lane
+                }
+                
+                processVehicleMovement(v, actualLane, current, next, westbound, queue);
+            }
             processed++;
         }
     }
@@ -229,6 +237,35 @@ public class TrafficController {
                                     Intersection next, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
     
         Point2D pos = v.getPosition();
+        String direction = v.getDirection().toLowerCase();
+        
+        // Check if this is a vehicle that should continue moving vertically
+        if (direction.equals("vertical-north") || direction.equals("vertical-south")) {
+            // These vehicles should ONLY move vertically, never horizontally
+            double verticalSpeed = 5.0;
+            double newY;
+            
+            if (direction.equals("vertical-north")) {
+                newY = pos.getY() - verticalSpeed; // Move up
+                if (newY < -20) {
+                    queue.remove(v); // Remove when off screen
+                } else {
+                    // Keep same X position, only change Y
+                    v.setPosition(new Point2D(pos.getX(), newY));
+                }
+            } else if (direction.equals("vertical-south")) {
+                newY = pos.getY() + verticalSpeed; // Move down
+                if (newY > SimulationConfig.SCENE_HEIGHT + 20) {
+                    queue.remove(v); // Remove when off screen
+                } else {
+                    // Keep same X position, only change Y
+                    v.setPosition(new Point2D(pos.getX(), newY));
+                }
+            }
+            return; // Exit early - no horizontal movement for vertical vehicles
+        }
+        
+        // Normal horizontal movement for other vehicles
         double speed = 5.0;
         double dx = westbound ? -speed : speed;
         v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
@@ -254,6 +291,185 @@ public class TrafficController {
         }
     }
     
+    private void processSpecialTurnVehicle(Vehicle v, Intersection current, boolean westbound, 
+                                          PriorityBlockingQueue<Vehicle> queue) {
+        String direction = v.getDirection().toLowerCase();
+        Point2D pos = v.getPosition();
+        double speed = 3.0; // Same speed as U-turn for consistency
+        
+        // Get intersection center X position
+        double[] centers = verticalCenters();
+        double intersectionCenterX;
+        
+        // Determine if this is a "second" variant (uses extended position like u-turn-second)
+        boolean isSecondVariant = direction.contains("second");
+        
+        // Check if vehicle needs to advance to next intersection first (for "second" variants)
+        if (isSecondVariant && v.getUTurnPhase() == 0 && !v.getId().contains("_advancing")) {
+            // Mark as advancing and move to next intersection
+            Intersection nextIntersection = findNextIntersection(current, westbound);
+            if (nextIntersection != null) {
+                v.setId(v.getId() + "_advancing");
+                // Use similar logic as u-turn-2nd advance
+                double moveSpeed = 5.0;
+                double dx = westbound ? -moveSpeed : moveSpeed;
+                v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+                
+                double targetX = intersectionX(nextIntersection.getId());
+                boolean arrived = westbound ? pos.getX() <= targetX : pos.getX() >= targetX;
+                
+                if (arrived) {
+                    queue.remove(v);
+                    v.setInIntersection(nextIntersection.getId());
+                    v.setPosition(new Point2D(targetX, pos.getY()));
+                    // Re-add to the appropriate queue at the new intersection
+                    if (direction.startsWith("left-north") || direction.startsWith("left-south")) {
+                        nextIntersection.getLeftVQueue().add(v);
+                    } else {
+                        nextIntersection.getRightVQueue().add(v);
+                    }
+                }
+                return;
+            }
+        }
+        
+        // Determine intersection center based on variant
+        if (v.getId().contains("_advancing")) {
+            intersectionCenterX = intersectionX(current.getId());
+        } else {
+            intersectionCenterX = current.getId().startsWith("East") ? centers[1] : centers[0];
+        }
+        
+        switch (v.getUTurnPhase()) {
+            case 0: // Approaching intersection center
+                double dx = westbound ? -speed : speed;
+                v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
+                
+                // Check if reached turning point
+                boolean reachedCenter = Math.abs(pos.getX() - intersectionCenterX) < 15;
+                
+                if (reachedCenter) {
+                    // For "second" variants that have advanced, need to continue to extended position
+                    if (v.getId().contains("_advancing")) {
+                        // Mark for extended movement
+                        v.setUTurnPhase(3); // New phase for extended movement
+                        System.out.println("Vehicle " + v.getId() + " (" + direction + ") continuing to extended position from " + 
+                                         current.getId());
+                    } else {
+                        // Regular variants start turning immediately
+                        v.setUTurnPhase(1);
+                        System.out.println("Vehicle " + v.getId() + " (" + direction + ") starting turn at " + 
+                                         current.getId() + " at X: " + v.getPosition().getX());
+                    }
+                }
+                break;
+                
+            case 1: // Making the 90-degree turn
+                double horizRoadY = (SimulationConfig.SCENE_HEIGHT - SimulationConfig.ROAD_WIDTH) / 2;
+                double verticalRoadWidth = SimulationConfig.ROAD_WIDTH;
+                double targetY;
+                String finalDirection;
+                
+                // Determine target Y position and final direction based on vehicle type
+                if (direction.startsWith("left-north") || direction.startsWith("right-north")) {
+                    // Turn north (upward) - go to top of screen
+                    targetY = 50; // Target position at top of vertical road
+                    finalDirection = "north";
+                } else if (direction.startsWith("right-south") || direction.startsWith("left-south")) {
+                    // Turn south (downward) - go to bottom of screen
+                    targetY = SimulationConfig.SCENE_HEIGHT - 50; // Target position at bottom of vertical road
+                    finalDirection = "south";
+                } else {
+                    targetY = pos.getY(); // Shouldn't happen
+                    finalDirection = "unknown";
+                }
+                
+                // Move toward target Y position
+                double dy = targetY - pos.getY();
+                if (Math.abs(dy) > speed) {
+                    double moveY = dy > 0 ? speed : -speed;
+                    v.setPosition(new Point2D(pos.getX(), pos.getY() + moveY));
+                } else {
+                    // Reached target position, complete the turn
+                    // Adjust X position for better lane alignment based on specific vehicle type
+                    double adjustedX = pos.getX();
+                    
+                    // West vehicles need specific adjustments
+                    if (current.getId().startsWith("West")) {
+                        if (direction.equals("left-north-first")) {
+                            adjustedX -= 3; // Move 3 pixels left (west) for West left-north-first
+                        } else if (direction.equals("right-south-first")) {
+                            adjustedX -= 3; // Move 3 pixels left (west) for West right-south-first
+                        }
+                    }
+                    // East vehicles
+                    else if (current.getId().startsWith("East")) {
+                        if (direction.equals("right-north-second")) {
+                            adjustedX -= 2; // Move 2 pixels left for East right-north-second
+                        }
+                    }
+                    
+                    v.setPosition(new Point2D(adjustedX, targetY));
+                    v.setUTurnPhase(2);
+                    
+                    // Continue moving vertically after turn
+                    v.setDirection("vertical-" + finalDirection);
+                    
+                    System.out.println("Vehicle " + v.getId() + " completed 90-degree turn to " + 
+                                     finalDirection + " at position (" + adjustedX + ", " + targetY + ")");
+                }
+                break;
+                
+            case 2: // Continue moving vertically after turn
+                // Move north or south - ONLY VERTICAL MOVEMENT
+                double verticalSpeed = 5.0;
+                double newY;
+                if (v.getDirection().contains("north")) {
+                    newY = pos.getY() - verticalSpeed; // Move up
+                    if (newY < -20) {
+                        queue.remove(v); // Remove when off screen
+                    } else {
+                        // Keep same X position, only change Y
+                        v.setPosition(new Point2D(pos.getX(), newY));
+                    }
+                } else if (v.getDirection().contains("south")) {
+                    newY = pos.getY() + verticalSpeed; // Move down
+                    if (newY > SimulationConfig.SCENE_HEIGHT + 20) {
+                        queue.remove(v); // Remove when off screen
+                    } else {
+                        // Keep same X position, only change Y
+                        v.setPosition(new Point2D(pos.getX(), newY));
+                    }
+                }
+                break;
+                
+            case 3: // Extended movement for "second" variants
+                // Continue moving horizontally to extended position before turning
+                // This matches the u-turn-second behavior
+                double extendedSpeed = 3.0; // Use same slower speed as u-turn for consistency
+                double extraDistance = 400; // Same distance as u-turn-second
+                double targetExtendedX = westbound ? 
+                    intersectionCenterX - extraDistance : 
+                    intersectionCenterX + extraDistance;
+                
+                double dxExtended = westbound ? -extendedSpeed : extendedSpeed;
+                
+                // Move gradually toward the extended position
+                v.setPosition(new Point2D(pos.getX() + dxExtended, pos.getY()));
+                
+                // Check if reached extended position
+                double distanceToExtended = Math.abs(pos.getX() - targetExtendedX);
+                if (distanceToExtended <= 5) {
+                    // Reached extended position, now start turning
+                    v.setPosition(new Point2D(targetExtendedX, pos.getY()));
+                    v.setUTurnPhase(1);
+                    System.out.println("Vehicle " + v.getId() + " (" + direction + ") starting turn at extended position " + 
+                                     current.getId() + " at X: " + targetExtendedX);
+                }
+                break;
+        }
+    }
+    
     private void processUTurnVehicles(Intersection current, boolean westbound) {
         // U-turns now come from the dedicated UTurnVQueue
         PriorityBlockingQueue<Vehicle> uTurnQueue = current.getUTurnVQueue();
@@ -262,7 +478,7 @@ public class TrafficController {
         
         List<Vehicle> uTurnVehicles = new ArrayList<>();
         for (Vehicle v : uTurnQueue) {
-            if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+            if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-second".equalsIgnoreCase(v.getDirection())) {
                 uTurnVehicles.add(v);
             }
         }
@@ -272,8 +488,8 @@ public class TrafficController {
                 continue;
             }
             
-            // For u-turn-2nd vehicles that haven't been marked as "advancing"
-            if ("u-turn-2nd".equalsIgnoreCase(v.getDirection()) && v.getUTurnPhase() == 0 && 
+            // For u-turn-second vehicles that haven't been marked as "advancing"
+            if ("u-turn-second".equalsIgnoreCase(v.getDirection()) && v.getUTurnPhase() == 0 && 
                 !v.getId().contains("_advancing")) {
                 // Find next intersection in the same direction
                 Intersection nextIntersection = findNextIntersection(current, westbound);
@@ -285,7 +501,7 @@ public class TrafficController {
                     // If no next intersection, treat as regular u-turn
                     processUTurnMovement(v, current, westbound, uTurnQueue);
                 }
-            } else if (!"u-turn-2nd".equalsIgnoreCase(v.getDirection()) || 
+            } else if (!"u-turn-second".equalsIgnoreCase(v.getDirection()) || 
                       v.getId().contains("_advancing")) {
                 // Process regular u-turn or u-turn-2nd that has arrived at target
                 processUTurnMovement(v, current, westbound, uTurnQueue);
@@ -525,6 +741,11 @@ public class TrafficController {
         
         double minSafeDistance = SimulationConfig.VEHICLE_LENGTH + 15;
         Point2D movingPos = movingVehicle.getPosition();
+        String movingDirection = movingVehicle.getDirection().toLowerCase();
+        
+        // Determine if this vehicle is moving vertically
+        boolean isMovingVertically = movingDirection.equals("vertical-north") || 
+                                    movingDirection.equals("vertical-south");
         
         // Check against all vehicles in all queues including UTurn
         List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
@@ -537,8 +758,17 @@ public class TrafficController {
         for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
             for (Vehicle other : queue) {
                 if (other != movingVehicle && other.getPosition() != null) {
-                    if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
-                        return false;
+                    if (isMovingVertically) {
+                        // For vertically moving vehicles, check vertical collisions
+                        if (isTooCloseVertically(movingPos, other.getPosition(), minSafeDistance, 
+                                               movingDirection.contains("north"))) {
+                            return false;
+                        }
+                    } else {
+                        // For horizontally moving vehicles, check horizontal collisions
+                        if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -547,7 +777,7 @@ public class TrafficController {
         return true;
     }
     
-    // Check if another vehicle is too close ahead in the direction of travel
+    // Check if another vehicle is too close ahead in the direction of travel (horizontal)
     private boolean isTooClose(Point2D movingPos, Point2D otherPos, double minDistance, boolean westbound) {
         // Check if vehicles are in roughly the same lane (Y position)
         if (Math.abs(movingPos.getY() - otherPos.getY()) > SimulationConfig.VEHICLE_WIDTH * 2) {
@@ -562,6 +792,25 @@ public class TrafficController {
         } else {
             // Moving right (eastbound): other vehicle should be to the right
             double distance = otherPos.getX() - movingPos.getX();
+            return distance > 0 && distance < minDistance;
+        }
+    }
+    
+    // Check if another vehicle is too close ahead in the direction of travel (vertical)
+    private boolean isTooCloseVertically(Point2D movingPos, Point2D otherPos, double minDistance, boolean movingNorth) {
+        // Check if vehicles are in roughly the same vertical lane (X position)
+        if (Math.abs(movingPos.getX() - otherPos.getX()) > SimulationConfig.VEHICLE_WIDTH * 2) {
+            return false; // Different vertical lanes, no collision risk
+        }
+        
+        // Check distance in direction of travel
+        if (movingNorth) {
+            // Moving north (upward): other vehicle should be above
+            double distance = movingPos.getY() - otherPos.getY();
+            return distance > 0 && distance < minDistance;
+        } else {
+            // Moving south (downward): other vehicle should be below
+            double distance = otherPos.getY() - movingPos.getY();
             return distance > 0 && distance < minDistance;
         }
     }

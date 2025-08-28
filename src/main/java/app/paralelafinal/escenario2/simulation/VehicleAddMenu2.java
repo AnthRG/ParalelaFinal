@@ -15,8 +15,9 @@ import javafx.stage.Stage;
 
 /**
  * Vehicle add menu for Scenario 2.
- * Lanes/IDs: East1, East2, East3, West1, West2, West3
- * Options per lane: Straight, Left, Right, U-turn
+ * Lanes/IDs: East1, West1
+ * Options per lane: Left, Left North First, Left North Second, Straight, Right, 
+ *                   Right South First, Right South Second, U-turn, U-turn Second
  */
 public class VehicleAddMenu2 {
 
@@ -30,11 +31,36 @@ public class VehicleAddMenu2 {
         grid.setVgap(5);
         grid.setPadding(new Insets(10, 10, 10, 10));
 
-        String[] lanes = {"East1", "East2", "West1", "West2"}; 
-        String[] directions = {"Straight", "Left", "Right", "U-turn", "U-turn 2nd"}; 
+        String[] lanes = {"East1", "West1"}; 
+        
+        // Different directions for East and West
+        String[] westDirections = {
+            "Left", 
+            "Left North First",   // West: left -> north
+            "Left North Second",  // West: left -> north (second)
+            "Straight", 
+            "Right", 
+            "Right South First",  // West: right -> south
+            "Right South Second", // West: right -> south (second)
+            "U-turn", 
+            "U-turn Second"
+        };
+        
+        String[] eastDirections = {
+            "Left", 
+            "Left South First",   // East: left -> south
+            "Left South Second",  // East: left -> south (second)
+            "Straight", 
+            "Right", 
+            "Right North First",  // East: right -> north
+            "Right North Second", // East: right -> north (second)
+            "U-turn", 
+            "U-turn Second"
+        };
 
         for (int col = 0; col < lanes.length; col++) {
             String laneId = lanes[col];
+            String[] directions = laneId.startsWith("East") ? eastDirections : westDirections;
 
             Label headerLabel = new Label(laneId);
             headerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
@@ -50,9 +76,9 @@ public class VehicleAddMenu2 {
 
             for (String direction : directions) {
                 Button btn = new Button(direction);
-                btn.setMinWidth(90);
+                btn.setMinWidth(140); // Increased width for longer button names
                 btn.setOnAction(e -> {
-                    String dir = direction.toLowerCase().replace(" ", "-"); // "straight", "left", "right", "u-turn", "u-turn-2nd"
+                    String dir = direction.toLowerCase().replace(" ", "-"); // converts to lowercase with hyphens
                     String type = emergencyCheck.isSelected() ? "emergency" : "normal";
                     // Expects SimulationEngine2 to provide addVehicle(String type, String direction, String laneId)
                     simulationEngine.addVehicle(type, dir, laneId);

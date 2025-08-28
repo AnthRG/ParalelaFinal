@@ -54,12 +54,21 @@ public class SimulationEngine2 {
     private int getQueueIndexForDirection(Intersection intersection, String direction) {
         switch(direction.toLowerCase()) {
             case "right":
+            case "right-south-first":
+            case "right-south-second":
+            case "right-north-first":
+            case "right-north-second":
                 return intersection.getRightVQueue().size();
             case "left":
-                // Count both left and u-turn vehicles in left queue
+            case "left-north-first":
+            case "left-north-second":
+            case "left-south-first":
+            case "left-south-second":
+                // Count all left-based vehicles in left queue
                 int leftCount = 0;
                 for (Vehicle v : intersection.getLeftVQueue()) {
-                    if ("left".equalsIgnoreCase(v.getDirection()) || "u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+                    String vDir = v.getDirection().toLowerCase();
+                    if (vDir.startsWith("left") || vDir.startsWith("u-turn")) {
                         leftCount++;
                     }
                 }
@@ -67,15 +76,9 @@ public class SimulationEngine2 {
             case "straight":
                 return intersection.getMidVQueue().size();
             case "u-turn":
-            case "u-turn-2nd":
+            case "u-turn-second":
                 // U-turn vehicles are in the UTurnVQueue
-                int uTurnCount = 0;
-                for (Vehicle v : intersection.getUTurnVQueue()) {
-                    if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
-                        uTurnCount++;
-                    }
-                }
-                return uTurnCount;
+                return intersection.getUTurnVQueue().size();
             default:
                 throw new IllegalArgumentException("Invalid direction: " + direction);
         }
@@ -98,17 +101,27 @@ public class SimulationEngine2 {
         Platform.runLater(() -> {
             switch (dir.toLowerCase()) {
                 case "left":
+                case "left-north-first":
+                case "left-north-second":
+                case "left-south-first":
+                case "left-south-second":
+                    // All left-based movements start from left queue
                     intersection.getLeftVQueue().add(vehicle);
                     break;
                 case "right":
+                case "right-south-first":
+                case "right-south-second":
+                case "right-north-first":
+                case "right-north-second":
+                    // All right-based movements start from right queue
                     intersection.getRightVQueue().add(vehicle);
                     break;
                 case "straight":
                     intersection.getMidVQueue().add(vehicle);
                     break;
                 case "u-turn":
-                case "u-turn-2nd":
-                    // U-turn vehicles go in the UTurnVQueue, not LeftVQueue
+                case "u-turn-second":
+                    // U-turn vehicles go in the UTurnVQueue
                     intersection.getUTurnVQueue().add(vehicle);
                     break;
                 default:
@@ -125,16 +138,22 @@ public class SimulationEngine2 {
        
         switch (direction.toLowerCase()) {
             case "left":
+            case "left-north-first":
+            case "left-north-second":
+            case "left-south-first":
+            case "left-south-second":
                 if (laneId.startsWith("East")) {
-                   
                     yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.EAST_LEFT_OFFSET;
                 } else {
                     yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.WEST_LEFT_OFFSET;
                 }
                 break;
             case "right":
+            case "right-south-first":
+            case "right-south-second":
+            case "right-north-first":
+            case "right-north-second":
                 if (laneId.startsWith("East")) {
-                    
                     yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.EAST_RIGHT_OFFSET;
                 } else {
                     yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.WEST_RIGHT_OFFSET;
@@ -153,7 +172,7 @@ public class SimulationEngine2 {
                     yPos = horizRoadY + laneWidth * 0.5 + LanePositionAdjustment.WEST_U_TURN_OFFSET;
                 }
                 break;
-            case "u-turn-2nd":
+            case "u-turn-second":
                 // Second U-turn vehicles use slightly different position
                 if (laneId.startsWith("East")) {
                     yPos = horizRoadY + laneWidth * 2.5 + LanePositionAdjustment.EAST_U_TURN_2ND_OFFSET;

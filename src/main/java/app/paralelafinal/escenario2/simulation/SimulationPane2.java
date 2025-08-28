@@ -249,10 +249,11 @@ public class SimulationPane2 extends Application {
 
         // Use the vehicle's actual intersection for angle calculation
         String actualIntersectionId = v.getInIntersection() != null ? v.getInIntersection() : intersectionId;
+        String direction = v.getDirection().toLowerCase();
         
         // Determine heading based on side and direction
-        double angle;
-        if ("u-turn".equalsIgnoreCase(v.getDirection()) || "u-turn-2nd".equalsIgnoreCase(v.getDirection())) {
+        double angle = 0; // Default angle
+        if (direction.equals("u-turn") || direction.equals("u-turn-second")) {
             // U-turn vehicles show different angle based on phase
             if (v.getUTurnPhase() == 0) {
                 // Approaching: normal direction
@@ -264,12 +265,41 @@ public class SimulationPane2 extends Application {
                 // Exiting: opposite direction
                 angle = actualIntersectionId.startsWith("East") ? 180 : 0;
             }
-        } else if ("left".equalsIgnoreCase(v.getDirection())) {
+        } else if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
+                   direction.startsWith("left-south") || direction.startsWith("right-north")) {
+            // Special turn vehicles show different angle based on phase
+            if (v.getUTurnPhase() == 0 || v.getUTurnPhase() == 3) {
+                // Phase 0: Approaching or Phase 3: Extended movement - keep horizontal
+                angle = actualIntersectionId.startsWith("East") ? 0 : 180;
+            } else if (v.getUTurnPhase() == 1) {
+                // Phase 1: Turning - perpendicular angle for 90-degree turn
+                if (direction.startsWith("left-north") || direction.startsWith("right-north")) {
+                    // Turning north (upward) - vehicle points up
+                    angle = -90;
+                } else if (direction.startsWith("right-south") || direction.startsWith("left-south")) {
+                    // Turning south (downward) - vehicle points down
+                    angle = 90;
+                }
+            } else if (v.getUTurnPhase() == 2) {
+                // Phase 2: After turn - keep facing north or south
+                if (direction.startsWith("left-north") || direction.startsWith("right-north")) {
+                    angle = -90; // Keep pointing north
+                } else {
+                    angle = 90; // Keep pointing south
+                }
+            }
+        } else if (direction.equals("vertical-north")) {
+            // Vehicle moving north after completing left-north turn
+            angle = -90;
+        } else if (direction.equals("vertical-south")) {
+            // Vehicle moving south after completing right-south turn
+            angle = 90;
+        } else if (direction.equals("left")) {
             // For vehicles that completed U-turn and are now in left lane
             // They should face the direction of their current intersection
             angle = actualIntersectionId.startsWith("East") ? 0 : 180;
         } else {
-            // Normal vehicles
+            // Normal vehicles (straight, right, regular left)
             angle = actualIntersectionId.startsWith("East") ? 0 : 180;
         }
         sprite.setRotate(angle);
