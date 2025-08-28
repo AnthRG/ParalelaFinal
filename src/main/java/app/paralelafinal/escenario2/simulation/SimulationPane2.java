@@ -223,8 +223,12 @@ public class SimulationPane2 extends Application {
     }
     
     private void drawVehicles(Pane layer, SimulationEngine2 engine) {
-        // Remove previous vehicle nodes
-        layer.getChildren().removeIf(node -> "vehicle".equals(node.getUserData()));
+        // Remove previous vehicle nodes and traffic lights
+        layer.getChildren().removeIf(node -> 
+            "vehicle".equals(node.getUserData()) || "traffic-light".equals(node.getUserData()));
+
+        // Draw traffic lights for each intersection
+        drawTrafficLights(layer, engine);
 
         for (Intersection intersection : engine.getIntersections()) {
             // FIXED: Include U-turn queue in rendering
@@ -313,6 +317,69 @@ public class SimulationPane2 extends Application {
         layer.getChildren().add(sprite);
     }
 
+    private void drawTrafficLights(Pane layer, SimulationEngine2 engine) {
+        // Only 2 traffic lights at the North-South intersections (vertical roads)
+        // Get the first intersection to check light status (all are synchronized)
+        boolean eastWestGreen = false;
+        if (!engine.getIntersections().isEmpty()) {
+            eastWestGreen = engine.getIntersections().get(0).getTrafficLight().isGreen();
+        }
+        
+        // Calculate vertical road positions (where intersections are)
+        double vertRoad1X = HORIZONTAL_BLOCK_SIZE + VERTICAL_ROAD_WIDTH / 2;
+        double vertRoad2X = HORIZONTAL_BLOCK_SIZE + VERTICAL_ROAD_WIDTH + HORIZONTAL_BLOCK_SIZE + VERTICAL_ROAD_WIDTH / 2;
+        
+        // Traffic light 1 - First vertical road intersection
+        Group light1 = createTrafficLightVisual(eastWestGreen);
+        light1.setLayoutX(vertRoad1X - 15);
+        light1.setLayoutY(200);
+        layer.getChildren().add(light1);
+        
+        // Traffic light 2 - Second vertical road intersection  
+        Group light2 = createTrafficLightVisual(eastWestGreen);
+        light2.setLayoutX(vertRoad2X - 15);
+        light2.setLayoutY(200);
+        layer.getChildren().add(light2);
+        
+        // Add text labels to show which direction has green
+        javafx.scene.text.Text statusText = new javafx.scene.text.Text();
+        statusText.setUserData("traffic-light");
+        if (eastWestGreen) {
+            statusText.setText("GREEN: East/West (→ ←)  |  RED: North/South (↑ ↓)");
+            statusText.setFill(Color.GREEN);
+        } else {
+            statusText.setText("RED: East/West (→ ←)  |  GREEN: North/South (↑ ↓)");
+            statusText.setFill(Color.RED);
+        }
+        statusText.setX(400);
+        statusText.setY(30);
+        statusText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        layer.getChildren().add(statusText);
+    }
+    
+    private Group createTrafficLightVisual(boolean eastWestGreen) {
+        Group lightGroup = new Group();
+        lightGroup.setUserData("traffic-light");
+        
+        // Create traffic light visual
+        Rectangle box = new Rectangle(30, 60);
+        box.setFill(Color.DARKGRAY);
+        box.setStroke(Color.BLACK);
+        box.setStrokeWidth(2);
+        
+        // Red light (on when East/West is green)
+        Circle redLight = new Circle(15, 15, 8);
+        redLight.setFill(eastWestGreen ? Color.RED : Color.DARKRED);
+        
+        // Green light (on when East/West is red, meaning North/South can go)
+        Circle greenLight = new Circle(15, 45, 8);
+        greenLight.setFill(eastWestGreen ? Color.DARKGREEN : Color.LIGHTGREEN);
+        
+        lightGroup.getChildren().addAll(box, redLight, greenLight);
+        
+        return lightGroup;
+    }
+    
     private Group createVehicleShape(Vehicle v) {
         Group vehicleGroup = new Group();
 

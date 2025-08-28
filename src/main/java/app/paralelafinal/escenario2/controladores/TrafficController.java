@@ -1,4 +1,3 @@
-
 package app.paralelafinal.escenario2.controladores;
 
 import app.paralelafinal.escenario2.entidades.Intersection;
@@ -33,6 +32,10 @@ public class TrafficController {
     private final List<Intersection> Intersections;
     private final ScheduledExecutorService scheduler;
     private final ReentrantLock controlLock = new ReentrantLock();
+    
+    // Performance monitoring
+    private long lastStepTime = 0;
+    private static final boolean DEBUG_PERFORMANCE = true;
 
     public TrafficController(List<Intersection> RightIntersections, List<Intersection> LeftIntersections) {
         this.RightIntersections = RightIntersections;
@@ -40,7 +43,8 @@ public class TrafficController {
         this.Intersections = new ArrayList<>();
         this.Intersections.addAll(RightIntersections);
         this.Intersections.addAll(LeftIntersections);
-        this.scheduler = Executors.newScheduledThreadPool(1);
+        // Use multiple threads for better parallelism
+        this.scheduler = Executors.newScheduledThreadPool(3);
     }
 
 
@@ -49,7 +53,8 @@ public class TrafficController {
      */
     public void startControl() {
         InitializeTrafficLights();
-        scheduler.scheduleAtFixedRate(this::autoLights, 0, 10, TimeUnit.SECONDS);
+        // Changed to 15 seconds for traffic light duration
+        scheduler.scheduleAtFixedRate(this::autoLights, 0, 15, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(this::EmergencyCheck, 3, 4, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(this::stepVehicles, 0, 50, TimeUnit.MILLISECONDS);
     }
@@ -62,6 +67,11 @@ public class TrafficController {
                 return;
             }
 
+            // Synchronized traffic light control
+            // When East/West have green, North/South have red and vice versa
+            boolean currentGreenForEastWest = RightIntersections.get(0).getTrafficLight().isGreen();
+            
+            // Toggle all lights together
             RightIntersections.forEach(intersection -> {
                 TrafficLight light = intersection.getTrafficLight();
                 light.changeLight();
@@ -71,6 +81,12 @@ public class TrafficController {
                 TrafficLight light = intersection.getTrafficLight();
                 light.changeLight();
             });
+            
+            // Log the light change
+            System.out.println("[TRAFFIC] Lights changed - East/West: " + 
+                             (currentGreenForEastWest ? "RED" : "GREEN") + 
+                             ", North/South would be: " + 
+                             (currentGreenForEastWest ? "GREEN" : "RED"));
         } finally {
             controlLock.unlock();
         }
@@ -88,22 +104,55 @@ public class TrafficController {
             if (emergency == null) {
                 return;
             }
-            Intersection target = null;
+            
+            // Find which intersection and lane has the emergency vehicle
+            Intersection targetIntersection = null;
+            String emergencyLane = null;
+            
             for (Intersection intersection : Intersections) {
-                if (intersection.getRightVQueue().contains(emergency)
-                        || intersection.getMidVQueue().contains(emergency)
-                        || intersection.getLeftVQueue().contains(emergency)) {
-                    target = intersection;
+                if (intersection.getRightVQueue().contains(emergency)) {
+                    targetIntersection = intersection;
+                    emergencyLane = "right";
+                    break;
+                } else if (intersection.getMidVQueue().contains(emergency)) {
+                    targetIntersection = intersection;
+                    emergencyLane = "straight";
+                    break;
+                } else if (intersection.getLeftVQueue().contains(emergency)) {
+                    targetIntersection = intersection;
+                    emergencyLane = "left";
+                    break;
+                } else if (intersection.getUTurnVQueue().contains(emergency)) {
+                    targetIntersection = intersection;
+                    emergencyLane = "uturn";
                     break;
                 }
             }
-            if (target == null) {
+            
+            if (targetIntersection == null) {
                 return;
             }
-            for (Intersection intersection : Intersections) {
-                TrafficLight light = intersection.getTrafficLight();
-                if (light != null) {
-                    light.getGreen().set(intersection == target);
+            
+            // Only give green light to the intersection with the emergency vehicle
+            // NOT all intersections - this was causing the freeze
+            TrafficLight targetLight = targetIntersection.getTrafficLight();
+            if (targetLight != null && !targetLight.isGreen()) {
+                targetLight.getGreen().set(true);
+                
+                // Turn off conflicting intersection lights to prevent collisions
+                // If East has emergency, turn off West lights and vice versa
+                for (Intersection other : Intersections) {
+                    if (other != targetIntersection) {
+                        // Only turn off if it's a conflicting direction
+                        boolean isConflicting = (targetIntersection.getId().startsWith("East") && other.getId().startsWith("West")) ||
+                                              (targetIntersection.getId().startsWith("West") && other.getId().startsWith("East"));
+                        if (isConflicting) {
+                            TrafficLight otherLight = other.getTrafficLight();
+                            if (otherLight != null) {
+                                otherLight.getGreen().set(false);
+                            }
+                        }
+                    }
                 }
             }
         } finally {
@@ -154,6 +203,9 @@ public class TrafficController {
 
     // Core stepping logic: move the head vehicle of a green-light intersection toward the next intersection
     private void stepVehicles() {
+        // Debug: Track processing time
+        long startTime = System.currentTimeMillis();
+        
         // Create local copies to minimize lock time
         List<Intersection> leftCopy;
         List<Intersection> rightCopy;
@@ -182,41 +234,90 @@ public class TrafficController {
             boolean isWestbound = current.getId().startsWith("East"); // East vehicles move west
             processLane(current, next, isWestbound);
         }
+        
+        // Debug: Log if processing takes too long
+        long processingTime = System.currentTimeMillis() - startTime;
+        if (processingTime > 100) {
+            System.out.println("[DEBUG] Step vehicles took " + processingTime + "ms - SLOW!");
+        }
     }
 
     private void processLane(Intersection current, Intersection next, boolean westbound) {
         if (current == null) return;
         TrafficLight light = current.getTrafficLight();
-        if (light == null || !light.isGreen()) return;
-
-        // Process all queues
-        processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound);
-        processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound);
-        processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound);
         
-        // Process U-turn vehicles separately from their dedicated queue
-        processUTurnVehicles(current, westbound);
+        // Determine if East/West has green (horizontal traffic can move)
+        boolean eastWestHasGreen = (light != null && light.isGreen());
+        
+        // Process different queues based on traffic light state
+        if (eastWestHasGreen) {
+            // East/West has green - process normal horizontal traffic
+            processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound, true);
+            processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound, true);
+            processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound, true);
+        } else {
+            // North/South has green - process turns to North/South and U-turns
+            // Still process vehicles already in intersection (phase > 0)
+            processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound, false);
+            processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound, false);
+            processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound, false);
+        }
+        
+        // U-turns can go when North/South has green (opposite of East/West)
+        if (!eastWestHasGreen) {
+            processUTurnVehicles(current, westbound);
+        }
     }
 
     private void processAllVehiclesInQueue(PriorityBlockingQueue<Vehicle> queue, String sourceLane, 
-                                     Intersection current, Intersection next, boolean westbound) {
+                                     Intersection current, Intersection next, boolean westbound, boolean canStartNew) {
         if (queue.isEmpty()) return;
         
-        // Process only a limited number of vehicles per cycle to prevent freezing
-        int maxVehiclesPerCycle = 3;
+        // Process only ONE vehicle per cycle for complex turns to prevent freezing
+        // Complex turns take more processing time
+        int maxVehiclesPerCycle = 1;
         int processed = 0;
         
         // Use iterator to avoid copying the entire queue
         for (Vehicle v : queue) {
             if (v == null || processed >= maxVehiclesPerCycle) break;
             
-            if (!canMoveWithoutCollision(v, current, westbound)) {
-                break; // Stop if this vehicle can't move
-            }
-            
             String direction = v.getDirection().toLowerCase();
             
-            // Check if this is a special turn movement
+            // Check if vehicle can proceed based on traffic light and phase
+            boolean canProceed = false;
+            
+            // Vehicles already in intersection (phase > 0) can always continue
+            if (v.getUTurnPhase() > 0) {
+                canProceed = true; // Vehicle is already turning, must continue
+            }
+            // Check if this is a special turn movement (North/South turns)
+            else if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
+                     direction.startsWith("left-south") || direction.startsWith("right-north")) {
+                // These can only start when North/South has green (canStartNew = false means N/S green)
+                canProceed = !canStartNew;
+            }
+            // Normal horizontal movements (straight, left, right)
+            else if (direction.equals("straight") || direction.equals("left") || direction.equals("right")) {
+                // These can only start when East/West has green (canStartNew = true)
+                canProceed = canStartNew;
+            }
+            // Vertical movements (already turned vehicles)
+            else if (direction.equals("vertical-north") || direction.equals("vertical-south")) {
+                canProceed = true; // Already in vertical movement, continue
+            }
+            
+            // If can't proceed due to traffic light, stop processing this queue
+            if (!canProceed) {
+                break; // Maintain queue order - if first can't go, none can
+            }
+            
+            // Check for collisions
+            if (!canMoveWithoutCollision(v, current, westbound)) {
+                break; // Stop if this vehicle can't move - maintains queue order
+            }
+            
+            // Process the vehicle based on its type
             if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
                 direction.startsWith("left-south") || direction.startsWith("right-north")) {
                 processSpecialTurnVehicle(v, current, westbound, queue);
@@ -353,13 +454,14 @@ public class TrafficController {
                     if (v.getId().contains("_advancing")) {
                         // Mark for extended movement
                         v.setUTurnPhase(3); // New phase for extended movement
-                        System.out.println("Vehicle " + v.getId() + " (" + direction + ") continuing to extended position from " + 
-                                         current.getId());
+                        // Commented out for performance
+                        // System.out.println("Vehicle " + v.getId() + " (" + direction + ") continuing to extended position from " + 
+                        //                  current.getId());
                     } else {
                         // Regular variants start turning immediately
                         v.setUTurnPhase(1);
-                        System.out.println("Vehicle " + v.getId() + " (" + direction + ") starting turn at " + 
-                                         current.getId() + " at X: " + v.getPosition().getX());
+                        // System.out.println("Vehicle " + v.getId() + " (" + direction + ") starting turn at " + 
+                        //                  current.getId() + " at X: " + v.getPosition().getX());
                     }
                 }
                 break;
@@ -747,7 +849,7 @@ public class TrafficController {
         boolean isMovingVertically = movingDirection.equals("vertical-north") || 
                                     movingDirection.equals("vertical-south");
         
-        // Check against all vehicles in all queues including UTurn
+        // ONLY check current intersection to avoid excessive processing
         List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
             intersection.getMidVQueue(),
             intersection.getRightVQueue(), 
