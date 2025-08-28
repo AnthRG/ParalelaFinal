@@ -95,6 +95,15 @@ public class SimulationEngine2 {
 
         int queueIndex = getQueueIndexForDirection(intersection, dir);
         Point2D spawnPos = calculateSpawnPosition(laneId, dir, queueIndex);
+        
+        // Verificar que no haya colisión con vehículos existentes
+        if (isPositionOccupied(spawnPos, intersection)) {
+            System.out.println("[WARNING] Cannot add vehicle at position (" + 
+                              spawnPos.getX() + ", " + spawnPos.getY() + 
+                              ") - Position already occupied!");
+            return; // No agregar el vehículo si la posición está ocupada
+        }
+        
         vehicle.setPosition(spawnPos);
 
         // Only queue the final UI update
@@ -246,6 +255,40 @@ public class SimulationEngine2 {
 
     public List<Intersection> getIntersections() {
         return intersections;
+    }
+
+    // Método para verificar si una posición está ocupada por otro vehículo
+    private boolean isPositionOccupied(Point2D position, Intersection intersection) {
+        double minDistance = SimulationConfig.VEHICLE_LENGTH + 10; // Distancia mínima entre vehículos
+        
+        // Verificar en TODAS las intersecciones para mayor seguridad
+        for (Intersection checkIntersection : intersections) {
+            // Verificar en todas las colas
+            List<Vehicle> allVehicles = new ArrayList<>();
+            allVehicles.addAll(checkIntersection.getMidVQueue());
+            allVehicles.addAll(checkIntersection.getRightVQueue());
+            allVehicles.addAll(checkIntersection.getLeftVQueue());
+            allVehicles.addAll(checkIntersection.getUTurnVQueue());
+            
+            for (Vehicle existingVehicle : allVehicles) {
+                if (existingVehicle.getPosition() != null) {
+                    double distance = position.distance(existingVehicle.getPosition());
+                    
+                    // Si la distancia es menor que el mínimo, la posición está ocupada
+                    if (distance < minDistance) {
+                        System.out.println("[COLLISION CHECK] Position conflict detected!");
+                        System.out.println("  New vehicle position: (" + position.getX() + ", " + position.getY() + ")");
+                        System.out.println("  Existing vehicle " + existingVehicle.getId() + 
+                                         " at: (" + existingVehicle.getPosition().getX() + 
+                                         ", " + existingVehicle.getPosition().getY() + ")");
+                        System.out.println("  Distance: " + distance + " (min required: " + minDistance + ")");
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false; // La posición está libre
     }
 
     // Debug method to print U-turn vehicle status

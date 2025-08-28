@@ -341,20 +341,6 @@ public class SimulationPane2 extends Application {
         light2.setLayoutY(200);
         layer.getChildren().add(light2);
         
-        // Add text labels to show which direction has green
-        javafx.scene.text.Text statusText = new javafx.scene.text.Text();
-        statusText.setUserData("traffic-light");
-        if (eastWestGreen) {
-            statusText.setText("GREEN: East/West (→ ←)  |  RED: North/South (↑ ↓)");
-            statusText.setFill(Color.GREEN);
-        } else {
-            statusText.setText("RED: East/West (→ ←)  |  GREEN: North/South (↑ ↓)");
-            statusText.setFill(Color.RED);
-        }
-        statusText.setX(400);
-        statusText.setY(30);
-        statusText.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        layer.getChildren().add(statusText);
     }
     
     private Group createTrafficLightVisual(boolean eastWestGreen) {

@@ -18,12 +18,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
- * Gestiona el flujo de tráfico para un conjunto de intersecciones controlando los semáforos.
- * La lógica sigue un estricto sistema de prioridades:
- * 1. Vehículos de emergencia: Se le da luz verde al carril completo hasta que el vehículo de emergencia pase.
- * Si hay múltiples vehículos de emergencia, se prioriza el que ha esperado más tiempo.
- * 2. Primer llegado, primer servido: En condiciones normales, el vehículo que ha esperado más tiempo
- * en todo el sistema tiene prioridad para pasar.
+ * Gestiona el flujo de tráfico para un conjunto de intersecciones.
+ * 
  */
 public class TrafficController {
 
@@ -82,11 +78,7 @@ public class TrafficController {
                 light.changeLight();
             });
             
-            // Log the light change
-            System.out.println("[TRAFFIC] Lights changed - East/West: " + 
-                             (currentGreenForEastWest ? "RED" : "GREEN") + 
-                             ", North/South would be: " + 
-                             (currentGreenForEastWest ? "GREEN" : "RED"));
+            // Removed traffic light change logs for cleaner output
         } finally {
             controlLock.unlock();
         }
@@ -139,7 +131,6 @@ public class TrafficController {
             if (targetLight != null && !targetLight.isGreen()) {
                 targetLight.getGreen().set(true);
                 
-                // Turn off conflicting intersection lights to prevent collisions
                 // If East has emergency, turn off West lights and vice versa
                 for (Intersection other : Intersections) {
                     if (other != targetIntersection) {
@@ -183,7 +174,7 @@ public class TrafficController {
     }
 
     /**
-     * Detiene el planificador de control de tráfico.
+     * Detiene el planificador de control de trafico
      */
     public void stopControl() {
         scheduler.shutdown();
@@ -246,36 +237,23 @@ public class TrafficController {
         if (current == null) return;
         TrafficLight light = current.getTrafficLight();
         
-        // Determine if East/West has green (horizontal traffic can move)
-        boolean eastWestHasGreen = (light != null && light.isGreen());
         
-        // Process different queues based on traffic light state
-        if (eastWestHasGreen) {
-            // East/West has green - process normal horizontal traffic
-            processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound, true);
-            processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound, true);
-            processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound, true);
-        } else {
-            // North/South has green - process turns to North/South and U-turns
-            // Still process vehicles already in intersection (phase > 0)
-            processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound, false);
-            processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound, false);
-            processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound, false);
-        }
         
-        // U-turns can go when North/South has green (opposite of East/West)
-        if (!eastWestHasGreen) {
-            processUTurnVehicles(current, westbound);
-        }
+        // Procesar todos los carriles siempre
+        processAllVehiclesInQueue(current.getMidVQueue(), "straight", current, next, westbound, true);
+        processAllVehiclesInQueue(current.getRightVQueue(), "right", current, next, westbound, true);
+        processAllVehiclesInQueue(current.getLeftVQueue(), "left", current, next, westbound, true);
+        
+        // U-turns también pueden avanzar siempre
+        processUTurnVehicles(current, westbound);
     }
 
     private void processAllVehiclesInQueue(PriorityBlockingQueue<Vehicle> queue, String sourceLane, 
                                      Intersection current, Intersection next, boolean westbound, boolean canStartNew) {
         if (queue.isEmpty()) return;
         
-        // Process only ONE vehicle per cycle for complex turns to prevent freezing
-        // Complex turns take more processing time
-        int maxVehiclesPerCycle = 1;
+        // SIMPLIFICACIÓN: Procesar múltiples vehículos por ciclo
+        int maxVehiclesPerCycle = 5; // Aumentado aún más para mejor fluidez
         int processed = 0;
         
         // Use iterator to avoid copying the entire queue
@@ -284,35 +262,22 @@ public class TrafficController {
             
             String direction = v.getDirection().toLowerCase();
             
-            // Check if vehicle can proceed based on traffic light and phase
-            boolean canProceed = false;
             
-            // Vehicles already in intersection (phase > 0) can always continue
-            if (v.getUTurnPhase() > 0) {
-                canProceed = true; // Vehicle is already turning, must continue
-            }
-            // Check if this is a special turn movement (North/South turns)
-            else if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
-                     direction.startsWith("left-south") || direction.startsWith("right-north")) {
-                // These can only start when North/South has green (canStartNew = false means N/S green)
-                canProceed = !canStartNew;
-            }
-            // Normal horizontal movements (straight, left, right)
-            else if (direction.equals("straight") || direction.equals("left") || direction.equals("right")) {
-                // These can only start when East/West has green (canStartNew = true)
-                canProceed = canStartNew;
-            }
-            // Vertical movements (already turned vehicles)
-            else if (direction.equals("vertical-north") || direction.equals("vertical-south")) {
-                canProceed = true; // Already in vertical movement, continue
+            boolean canProceed = true;
+            
+            // Para movimientos norte-sur, verificar prioridad por tiempo de llegada
+            if (direction.startsWith("left-north") || direction.startsWith("right-south") ||
+                direction.startsWith("left-south") || direction.startsWith("right-north")) {
+                // Verificar si hay conflicto con otro vehículo que va al mismo destino
+                canProceed = checkNorthSouthPriority(v, current, direction);
             }
             
-            // If can't proceed due to traffic light, stop processing this queue
+            // Si no puede proceder por prioridad, esperar
             if (!canProceed) {
-                break; // Maintain queue order - if first can't go, none can
+                break; // Mantener orden de cola
             }
             
-            // Check for collisions
+            // Check for collisions with vehicles ahead
             if (!canMoveWithoutCollision(v, current, westbound)) {
                 break; // Stop if this vehicle can't move - maintains queue order
             }
@@ -333,6 +298,42 @@ public class TrafficController {
             processed++;
         }
     }
+    
+    // Nuevo método para verificar prioridad en intersecciones norte-sur
+    private boolean checkNorthSouthPriority(Vehicle vehicle, Intersection current, String direction) {
+        // Determinar el destino del vehículo (norte o sur)
+        boolean goingNorth = direction.contains("north");
+        
+        // Buscar en todas las colas de la intersección actual si hay otro vehículo
+        // que vaya al mismo destino vertical y haya llegado antes
+        List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
+            current.getRightVQueue(),
+            current.getMidVQueue(),
+            current.getLeftVQueue()
+        );
+        
+        for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
+            for (Vehicle other : queue) {
+                if (other != vehicle && other.getDirection() != null) {
+                    String otherDir = other.getDirection().toLowerCase();
+                    
+                    // Verificar si el otro vehículo va al mismo destino vertical
+                    boolean otherGoingNorth = otherDir.contains("north");
+                    boolean sameDestination = (goingNorth && otherGoingNorth) || (!goingNorth && !otherGoingNorth);
+                    
+                    // Si van al mismo destino y el otro llegó primero, este vehículo debe esperar
+                    if (sameDestination && otherDir.startsWith("left-") || otherDir.startsWith("right-")) {
+                        if (other.getArrivalTime() < vehicle.getArrivalTime()) {
+                            // El otro vehículo tiene prioridad
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return true; // Este vehículo tiene prioridad o no hay conflicto
+    }
 
     private void processVehicleMovement(Vehicle v, String sourceLane, Intersection current, 
                                     Intersection next, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
@@ -342,8 +343,8 @@ public class TrafficController {
         
         // Check if this is a vehicle that should continue moving vertically
         if (direction.equals("vertical-north") || direction.equals("vertical-south")) {
-            // These vehicles should ONLY move vertically, never horizontally
-            double verticalSpeed = 5.0;
+            // These vehicles should ONLY move vertically, never horizontally 
+            double verticalSpeed = 8.0;
             double newY;
             
             if (direction.equals("vertical-north")) {
@@ -367,7 +368,7 @@ public class TrafficController {
         }
         
         // Normal horizontal movement for other vehicles
-        double speed = 5.0;
+        double speed = 8.0; 
         double dx = westbound ? -speed : speed;
         v.setPosition(new Point2D(pos.getX() + dx, pos.getY()));
 
@@ -396,7 +397,7 @@ public class TrafficController {
                                           PriorityBlockingQueue<Vehicle> queue) {
         String direction = v.getDirection().toLowerCase();
         Point2D pos = v.getPosition();
-        double speed = 3.0; // Same speed as U-turn for consistency
+        double speed = 7.0; // INCREASED SPEED for special turns (north/south)
         
         // Get intersection center X position
         double[] centers = verticalCenters();
@@ -499,15 +500,15 @@ public class TrafficController {
                     // West vehicles need specific adjustments
                     if (current.getId().startsWith("West")) {
                         if (direction.equals("left-north-first")) {
-                            adjustedX -= 3; // Move 3 pixels left (west) for West left-north-first
+                            adjustedX -= 3; 
                         } else if (direction.equals("right-south-first")) {
-                            adjustedX -= 3; // Move 3 pixels left (west) for West right-south-first
+                            adjustedX -= 3; 
                         }
                     }
                     // East vehicles
                     else if (current.getId().startsWith("East")) {
                         if (direction.equals("right-north-second")) {
-                            adjustedX -= 2; // Move 2 pixels left for East right-north-second
+                            adjustedX -= 2;
                         }
                     }
                     
@@ -524,7 +525,7 @@ public class TrafficController {
                 
             case 2: // Continue moving vertically after turn
                 // Move north or south - ONLY VERTICAL MOVEMENT
-                double verticalSpeed = 5.0;
+                double verticalSpeed = 8.0; // Más del doble de velocidad
                 double newY;
                 if (v.getDirection().contains("north")) {
                     newY = pos.getY() - verticalSpeed; // Move up
@@ -548,7 +549,7 @@ public class TrafficController {
             case 3: // Extended movement for "second" variants
                 // Continue moving horizontally to extended position before turning
                 // This matches the u-turn-second behavior
-                double extendedSpeed = 3.0; // Use same slower speed as u-turn for consistency
+                double extendedSpeed = 6.0; // INCREASED SPEED for extended movement
                 double extraDistance = 400; // Same distance as u-turn-second
                 double targetExtendedX = westbound ? 
                     intersectionCenterX - extraDistance : 
@@ -614,7 +615,7 @@ public class TrafficController {
     private void processUTurn2ndAdvance(Vehicle v, Intersection current, Intersection next, 
                                         boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
         Point2D pos = v.getPosition();
-        double speed = 5.0; // Normal speed to reach next intersection
+        double speed = 8.0; // INCREASED SPEED to reach next intersection faster
         double dx = westbound ? -speed : speed;
         
         // Move toward next intersection
@@ -674,7 +675,7 @@ public class TrafficController {
     
     private void processUTurnMovement(Vehicle v, Intersection current, boolean westbound, PriorityBlockingQueue<Vehicle> queue) {
         Point2D pos = v.getPosition();
-        double speed = 3.0; // Slower speed for U-turn maneuver
+        double speed = 7.0; 
         
         // Get intersection center X position
         double[] centers = verticalCenters();
@@ -841,7 +842,23 @@ public class TrafficController {
     private boolean canMoveWithoutCollision(Vehicle movingVehicle, Intersection intersection, boolean westbound) {
         if (movingVehicle == null || movingVehicle.getPosition() == null) return false;
         
-        double minSafeDistance = SimulationConfig.VEHICLE_LENGTH + 15;
+        // IMPORTANTE: Las emergencias NO pueden pasar por encima de otros vehículos
+        // Deben esperar si hay un vehículo adelante, pero los vehículos normales
+        // en el mismo carril que la emergencia también tienen prioridad
+        
+        // Primero verificar si este vehículo está en el mismo carril que una emergencia
+        boolean inEmergencyLane = isInSameLaneAsEmergency(movingVehicle, intersection);
+        
+        if (movingVehicle.isEmergency()) {
+            // Poner semáforo en verde para el carril de emergencias
+            TrafficLight light = intersection.getTrafficLight();
+            if (light != null && !light.isGreen()) {
+                light.getGreen().set(true);
+            }
+            // PERO la emergencia debe verificar colisiones también
+        }
+        
+        double minSafeDistance = SimulationConfig.VEHICLE_LENGTH + 25; // Aumentado para más seguridad
         Point2D movingPos = movingVehicle.getPosition();
         String movingDirection = movingVehicle.getDirection().toLowerCase();
         
@@ -849,27 +866,82 @@ public class TrafficController {
         boolean isMovingVertically = movingDirection.equals("vertical-north") || 
                                     movingDirection.equals("vertical-south");
         
-        // ONLY check current intersection to avoid excessive processing
-        List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
-            intersection.getMidVQueue(),
-            intersection.getRightVQueue(), 
-            intersection.getLeftVQueue(),
-            intersection.getUTurnVQueue()
-        );
-        
-        for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
-            for (Vehicle other : queue) {
-                if (other != movingVehicle && other.getPosition() != null) {
-                    if (isMovingVertically) {
-                        // For vertically moving vehicles, check vertical collisions
-                        if (isTooCloseVertically(movingPos, other.getPosition(), minSafeDistance, 
-                                               movingDirection.contains("north"))) {
-                            return false;
+        // Verificar colisiones con TODAS las intersecciones para mayor seguridad
+        for (Intersection checkIntersection : Intersections) {
+            List<PriorityBlockingQueue<Vehicle>> allQueues = List.of(
+                checkIntersection.getMidVQueue(),
+                checkIntersection.getRightVQueue(), 
+                checkIntersection.getLeftVQueue(),
+                checkIntersection.getUTurnVQueue()
+            );
+            
+            for (PriorityBlockingQueue<Vehicle> queue : allQueues) {
+                for (Vehicle other : queue) {
+                    if (other != movingVehicle && other.getPosition() != null) {
+                        boolean potentialCollision = false;
+                        
+                        if (isMovingVertically) {
+                            // For vertically moving vehicles, check vertical collisions
+                            potentialCollision = isTooCloseVertically(movingPos, other.getPosition(), 
+                                                                     minSafeDistance, 
+                                                                     movingDirection.contains("north"));
+                        } else {
+                            // For horizontally moving vehicles, check horizontal collisions
+                            potentialCollision = isTooClose(movingPos, other.getPosition(), 
+                                                           minSafeDistance, westbound);
                         }
-                    } else {
-                        // For horizontally moving vehicles, check horizontal collisions
-                        if (isTooClose(movingPos, other.getPosition(), minSafeDistance, westbound)) {
-                            return false;
+                        
+                        // Si hay potencial colisión, verificar quién tiene prioridad
+                        if (potentialCollision) {
+                            // IMPORTANTE: Solo detener si realmente el otro tiene prioridad
+                            // Para evitar deadlocks, ser más específico sobre quién debe detenerse
+                            
+                            // Entre emergencias, prioridad a la más antigua
+                            if (movingVehicle.isEmergency() && other.isEmergency()) {
+                                // Ambas son emergencias, prioridad a la que llegó primero
+                                if (other.getArrivalTime() < movingVehicle.getArrivalTime()) {
+                                    System.out.println("[EMERGENCY PRIORITY] Emergency " + movingVehicle.getId() + 
+                                                     " waiting for older emergency " + other.getId());
+                                    return false; // La otra emergencia tiene prioridad
+                                }
+                                // Si esta emergencia es más antigua o igual, puede continuar
+                                System.out.println("[EMERGENCY PRIORITY] Emergency " + movingVehicle.getId() + 
+                                                 " has priority over " + other.getId());
+                            }
+                            // Si el otro es emergencia y este no, el otro tiene prioridad
+                            else if (other.isEmergency() && !movingVehicle.isEmergency()) {
+                                System.out.println("[YIELD TO EMERGENCY] Vehicle " + movingVehicle.getId() + 
+                                                 " yielding to emergency " + other.getId());
+                                return false; // Ceder paso a la emergencia
+                            }
+                            // Si este es emergencia y el otro no, este tiene prioridad absoluta
+                            else if (movingVehicle.isEmergency() && !other.isEmergency()) {
+                                // Esta emergencia tiene prioridad absoluta
+                                System.out.println("[EMERGENCY OVERRIDE] Emergency " + movingVehicle.getId() + 
+                                                 " has priority over normal vehicle " + other.getId());
+                                // La emergencia puede continuar, el otro vehículo debe ceder
+                                continue; // Verificar siguiente vehículo
+                            }
+                            // Si ninguno es emergencia, prioridad al más antiguo
+                            else if (other.getArrivalTime() < movingVehicle.getArrivalTime()) {
+                                // El otro vehículo llegó primero, tiene prioridad
+                                System.out.println("[COLLISION AVOIDED] Vehicle " + movingVehicle.getId() + 
+                                                 " (arrival: " + movingVehicle.getArrivalTime() + 
+                                                 ") waiting for older vehicle " + other.getId() + 
+                                                 " (arrival: " + other.getArrivalTime() + ")");
+                                return false;
+                            }
+                            else if (other.getArrivalTime() == movingVehicle.getArrivalTime()) {
+                                // Si llegaron al mismo tiempo, usar ID como desempate
+                                if (other.getId().compareTo(movingVehicle.getId()) < 0) {
+                                    System.out.println("[TIE BREAKER] Vehicle " + movingVehicle.getId() + 
+                                                     " waiting for " + other.getId() + " (same arrival time)");
+                                    return false;
+                                }
+                            }
+                            // Si este vehículo es más antiguo, puede continuar
+                            System.out.println("[PRIORITY] Vehicle " + movingVehicle.getId() + 
+                                             " has priority over " + other.getId());
                         }
                     }
                 }
@@ -879,9 +951,68 @@ public class TrafficController {
         return true;
     }
     
+        
+    // Verificar si un vehículo está en el mismo carril que una emergencia con mayor prioridad
+    private boolean isInSameLaneAsEmergency(Vehicle vehicle, Intersection intersection) {
+        // Si este vehículo ES una emergencia, no necesita verificar
+        if (vehicle.isEmergency()) {
+            return false;
+        }
+        
+        // Buscar si hay una emergencia en la misma cola que este vehículo
+        PriorityBlockingQueue<Vehicle> vehicleQueue = null;
+        
+        if (intersection.getMidVQueue().contains(vehicle)) {
+            vehicleQueue = intersection.getMidVQueue();
+        } else if (intersection.getRightVQueue().contains(vehicle)) {
+            vehicleQueue = intersection.getRightVQueue();
+        } else if (intersection.getLeftVQueue().contains(vehicle)) {
+            vehicleQueue = intersection.getLeftVQueue();
+        } else if (intersection.getUTurnVQueue().contains(vehicle)) {
+            vehicleQueue = intersection.getUTurnVQueue();
+        }
+        
+        // Si encontramos la cola del vehículo, verificar si hay emergencias
+        if (vehicleQueue != null) {
+            for (Vehicle v : vehicleQueue) {
+                // No comparar consigo mismo y solo buscar emergencias
+                if (v != vehicle && v.isEmergency()) {
+                    return true; // Hay una emergencia en el mismo carril
+                }
+            }
+        }
+        
+        return false;
+    }
+    
     // Check if another vehicle is too close ahead in the direction of travel (horizontal)
     private boolean isTooClose(Point2D movingPos, Point2D otherPos, double minDistance, boolean westbound) {
-        // Check if vehicles are in roughly the same lane (Y position)
+        // Verificación más estricta de proximidad
+        double xDist = Math.abs(movingPos.getX() - otherPos.getX());
+        double yDist = Math.abs(movingPos.getY() - otherPos.getY());
+        
+        // Si están muy cerca en ambas dimensiones, hay riesgo de colisión
+        if (xDist < minDistance && yDist < SimulationConfig.VEHICLE_WIDTH * 2.5) {
+            // Verificar si el otro vehículo está en la trayectoria
+            if (westbound) {
+                // Si vamos hacia el oeste y el otro está a la izquierda
+                if (otherPos.getX() < movingPos.getX()) {
+                    return true; // Colisión potencial
+                }
+            } else {
+                // Si vamos hacia el este y el otro está a la derecha
+                if (otherPos.getX() > movingPos.getX()) {
+                    return true; // Colisión potencial
+                }
+            }
+            
+            // También verificar si están en el mismo punto (intersección)
+            if (xDist < SimulationConfig.VEHICLE_LENGTH && yDist < SimulationConfig.VEHICLE_WIDTH) {
+                return true; // Están ocupando el mismo espacio
+            }
+        }
+        
+        // Verificación original para vehículos en el mismo carril
         if (Math.abs(movingPos.getY() - otherPos.getY()) > SimulationConfig.VEHICLE_WIDTH * 2) {
             return false; // Different lanes, no collision risk
         }
@@ -900,7 +1031,32 @@ public class TrafficController {
     
     // Check if another vehicle is too close ahead in the direction of travel (vertical)
     private boolean isTooCloseVertically(Point2D movingPos, Point2D otherPos, double minDistance, boolean movingNorth) {
-        // Check if vehicles are in roughly the same vertical lane (X position)
+        // Verificación más estricta de proximidad vertical
+        double xDist = Math.abs(movingPos.getX() - otherPos.getX());
+        double yDist = Math.abs(movingPos.getY() - otherPos.getY());
+        
+        // Si están muy cerca en ambas dimensiones, hay riesgo de colisión
+        if (yDist < minDistance && xDist < SimulationConfig.VEHICLE_WIDTH * 2.5) {
+            // Verificar si el otro vehículo está en la trayectoria
+            if (movingNorth) {
+                // Si vamos hacia el norte y el otro está arriba
+                if (otherPos.getY() < movingPos.getY()) {
+                    return true; // Colisión potencial
+                }
+            } else {
+                // Si vamos hacia el sur y el otro está abajo
+                if (otherPos.getY() > movingPos.getY()) {
+                    return true; // Colisión potencial
+                }
+            }
+            
+            // También verificar si están en el mismo punto (intersección)
+            if (xDist < SimulationConfig.VEHICLE_WIDTH && yDist < SimulationConfig.VEHICLE_LENGTH) {
+                return true; // Están ocupando el mismo espacio
+            }
+        }
+        
+        // Verificación original
         if (Math.abs(movingPos.getX() - otherPos.getX()) > SimulationConfig.VEHICLE_WIDTH * 2) {
             return false; // Different vertical lanes, no collision risk
         }
